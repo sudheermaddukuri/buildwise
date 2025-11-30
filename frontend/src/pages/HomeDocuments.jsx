@@ -4,42 +4,42 @@ import { api } from '../api/client'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
-import TextField from '@mui/material/TextField'
 import Button from '@mui/material/Button'
-import Alert from '@mui/material/Alert'
 import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
 import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
-import List from '@mui/material/List'
-import ListItem from '@mui/material/ListItem'
-import ListItemText from '@mui/material/ListItemText'
-import Divider from '@mui/material/Divider'
-import Grid from '@mui/material/Grid'
 import Link from '@mui/material/Link'
-import Chip from '@mui/material/Chip'
 import Box from '@mui/material/Box'
 import Dialog from '@mui/material/Dialog'
 import DialogTitle from '@mui/material/DialogTitle'
 import DialogContent from '@mui/material/DialogContent'
 import IconButton from '@mui/material/IconButton'
 import CloseIcon from '@mui/icons-material/Close'
+import Table from '@mui/material/Table'
+import TableHead from '@mui/material/TableHead'
+import TableBody from '@mui/material/TableBody'
+import TableRow from '@mui/material/TableRow'
+import TableCell from '@mui/material/TableCell'
+import Tooltip from '@mui/material/Tooltip'
+import VisibilityIcon from '@mui/icons-material/Visibility'
+import DownloadIcon from '@mui/icons-material/Download'
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import UploadDocumentDialog from '../components/UploadDocumentDialog.jsx'
+import PageHeader from '../components/PageHeader.jsx'
+import { useNavigate } from 'react-router-dom'
 
 export default function HomeDocuments() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const [home, setHome] = useState(null)
-  const [error, setError] = useState('')
   const [filter, setFilter] = useState('all')
-  const [title, setTitle] = useState('')
-  const [url, setUrl] = useState('')
-  const [pinType, setPinType] = useState('home')
-  const [pinId, setPinId] = useState('')
   const [preview, setPreview] = useState({ open: false, url: '', title: '' })
   const [uploadOpen, setUploadOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    api.getHome(id).then(setHome).catch((e) => setError(e.message))
+    api.getHome(id).then(setHome).catch(() => {})
   }, [id])
 
   const docs = useMemo(() => {
@@ -52,26 +52,6 @@ export default function HomeDocuments() {
     }
     return items
   }, [home, filter])
-
-  async function addDoc(e) {
-    e.preventDefault()
-    setError('')
-    try {
-      const body = {
-        title,
-        url,
-        pinnedTo: { type: pinType, id: pinType === 'home' ? undefined : pinId },
-      }
-      const res = await api.addDocument(id, body)
-      setHome(res.home)
-      setTitle('')
-      setUrl('')
-      setPinType('home')
-      setPinId('')
-    } catch (e2) {
-      setError(e2.message)
-    }
-  }
 
   async function openPreview(url, title) {
     // For PDFs, try to fetch and display via blob URL to bypass attachment headers
@@ -102,107 +82,102 @@ export default function HomeDocuments() {
   function isPdf(u) {
     return /\.pdf($|[\?#])/i.test(u || '')
   }
+  async function onDelete(docId) {
+    if (!window.confirm('Delete this document from the project? This cannot be undone.')) return
+    try {
+      setBusy(true)
+      const res = await api.deleteDocument(id, docId)
+      setHome(res.home)
+    } catch {
+      // ignore
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
     <Stack spacing={2}>
-      <Paper variant="outlined" sx={{ p: 2 }}>
-        <Typography variant="h6" gutterBottom>Add Document (by URL)</Typography>
-        <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
-          <Button variant="contained" onClick={() => setUploadOpen(true)}>Upload Document</Button>
-        </Stack>
-        <Stack component="form" spacing={2} onSubmit={addDoc}>
-          <TextField label="Title" required value={title} onChange={(e) => setTitle(e.target.value)} />
-          <TextField label="URL" required value={url} onChange={(e) => setUrl(e.target.value)} />
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <FormControl fullWidth>
-              <InputLabel id="pin-type">Pin To</InputLabel>
-              <Select labelId="pin-type" label="Pin To" value={pinType} onChange={(e) => setPinType(e.target.value)}>
-                <MenuItem value="home">Home</MenuItem>
-                <MenuItem value="trade">Trade</MenuItem>
-                <MenuItem value="task">Task</MenuItem>
+      <PageHeader
+        title="Documents"
+        onBack={() => navigate(-1)}
+        breadcrumbs={[
+          { label: 'Homes', href: '/homes' },
+          { label: home?.name || 'Home', href: `/homes/${id}` },
+          { label: 'Documents' }
+        ]}
+        actions={
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Button variant="contained" onClick={() => setUploadOpen(true)}>Upload</Button>
+            <FormControl size="small">
+              <InputLabel id="doc-filter">Filter</InputLabel>
+              <Select labelId="doc-filter" label="Filter" value={filter} onChange={(e) => setFilter(e.target.value)}>
+                <MenuItem value="all">All</MenuItem>
+                <MenuItem value="pdf">PDFs</MenuItem>
+                <MenuItem value="photos">Photos</MenuItem>
               </Select>
             </FormControl>
-            {pinType !== 'home' && (
-              <FormControl fullWidth>
-                <InputLabel id="pin-id">Select {pinType}</InputLabel>
-                <Select
-                  labelId="pin-id"
-                  label={`Select ${pinType}`}
-                  value={pinId}
-                  onChange={(e) => setPinId(e.target.value)}
-                >
-                  {pinType === 'trade' &&
-                    ((home?.trades || home?.bids || [])).map((b) => <MenuItem key={b._id} value={b._id}>{b.name}</MenuItem>)}
-                  {pinType === 'task' &&
-                    ((home?.trades || home?.bids || [])).flatMap((b) =>
-                      (b.tasks || []).map((t) => (
-                        <MenuItem key={t._id} value={t._id}>{`${b.name} — ${t.title}`}</MenuItem>
-                      ))
-                    )}
-                </Select>
-              </FormControl>
-            )}
-          </Stack>
-          <Button variant="contained" type="submit">Add</Button>
-          {error && <Alert severity="error">{error}</Alert>}
-        </Stack>
-      </Paper>
-
+          </Box>
+        }
+      />
       <Paper variant="outlined" sx={{ p: 2 }}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center" justifyContent="space-between">
-          <Typography variant="h6">Documents</Typography>
-          <FormControl size="small">
-            <InputLabel id="doc-filter">Filter</InputLabel>
-            <Select labelId="doc-filter" label="Filter" value={filter} onChange={(e) => setFilter(e.target.value)}>
-              <MenuItem value="all">All</MenuItem>
-              <MenuItem value="pdf">PDFs</MenuItem>
-              <MenuItem value="photos">Photos</MenuItem>
-            </Select>
-          </FormControl>
-        </Stack>
-        <Grid container spacing={2}>
-          {docs.map((d) => {
-            const name = d.fileName || d.title || (d.url || '').split('/').pop() || 'File'
-            const uploadedBy = d.uploadedBy?.fullName || d.uploadedBy?.email || ''
-            const uploadedAt = d.createdAt ? new Date(d.createdAt).toLocaleString() : ''
-            return (
-              <Grid item xs={12} sm={6} md={4} key={d._id}>
-                <Paper variant="outlined" sx={{ p: 2, display: 'grid', gap: 1 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{name}</Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-all' }}>
-                    {d.title && d.title !== name ? d.title : ''}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {uploadedBy ? `Uploaded by: ${uploadedBy}` : ''}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {uploadedAt ? `Uploaded: ${uploadedAt}` : ''}
-                  </Typography>
-                  <Chip size="small" label={`Pinned: ${d.pinnedTo?.type || 'home'}`} sx={{ width: 'fit-content' }} />
-                  <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
-                    <Button size="small" variant="contained" onClick={() => openPreview(d.url, name)}>View</Button>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      component={Link}
-                      href={d.url}
-                      download
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Download
-                    </Button>
-                  </Box>
-                </Paper>
-              </Grid>
-            )
-          })}
-          {!docs.length && (
-            <Grid item xs={12}>
-              <Typography variant="body2" color="text.secondary">No documents</Typography>
-            </Grid>
-          )}
-        </Grid>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>File Name</TableCell>
+              <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Title</TableCell>
+              <TableCell>Pinned To</TableCell>
+              <TableCell>Uploaded By</TableCell>
+              <TableCell>Uploaded At</TableCell>
+              <TableCell align="right">Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {docs.map((d) => {
+              const name = d.fileName || d.title || (d.url || '').split('/').pop() || 'File'
+              const uploadedBy = d.uploadedBy?.fullName || d.uploadedBy?.email || ''
+              const uploadedAt = d.createdAt ? new Date(d.createdAt).toLocaleString() : ''
+              return (
+                <TableRow key={d._id}>
+                  <TableCell sx={{ wordBreak: 'break-all' }}>
+                    <Button variant="text" onClick={() => openPreview(d.url, name)}>{name}</Button>
+                  </TableCell>
+                  <TableCell sx={{ display: { xs: 'none', md: 'table-cell' }, wordBreak: 'break-all' }}>
+                    {d.title && d.title !== name ? d.title : '—'}
+                  </TableCell>
+                  <TableCell>{d.pinnedTo?.type || 'home'}</TableCell>
+                  <TableCell>{uploadedBy || '—'}</TableCell>
+                  <TableCell>{uploadedAt || '—'}</TableCell>
+                  <TableCell align="right">
+                    <Tooltip title="View">
+                      <IconButton size="small" onClick={() => openPreview(d.url, name)}>
+                        <VisibilityIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Download">
+                      <IconButton size="small" component={Link} href={d.url} download target="_blank" rel="noreferrer">
+                        <DownloadIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Delete">
+                      <span>
+                        <IconButton size="small" color="error" disabled={busy} onClick={() => onDelete(d._id)}>
+                          <DeleteOutlineIcon fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  </TableCell>
+                </TableRow>
+              )
+            })}
+            {!docs.length && (
+              <TableRow>
+                <TableCell colSpan={6}>
+                  <Typography variant="body2" color="text.secondary">No documents</Typography>
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
       </Paper>
 
       <Dialog open={preview.open} onClose={closePreview} fullWidth maxWidth="lg">

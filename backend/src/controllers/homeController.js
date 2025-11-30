@@ -301,6 +301,24 @@ async function addDocument(req, res) {
   return res.status(201).json({ home, document: doc });
 }
 
+async function deleteDocument(req, res) {
+  const { homeId, docId } = req.params;
+  const home = await Home.findById(homeId);
+  if (!home) {
+    return res.status(404).json({ message: 'Home not found' });
+  }
+  const exists = (home.documents || []).some((d) => String(d._id) === String(docId));
+  if (!exists) {
+    return res.status(404).json({ message: 'Document not found' });
+  }
+  const updated = await Home.findByIdAndUpdate(
+    homeId,
+    { $pull: { documents: { _id: String(docId) } } },
+    { new: true }
+  );
+  return res.json({ home: updated });
+}
+
 const qualityCheckCreateSchema = Joi.object({
   phaseKey: Joi.string().valid(...PhaseKeyEnum).required(),
   title: Joi.string().required(),
@@ -369,6 +387,7 @@ module.exports = {
   addQualityCheckToBid,
   addSchedule,
   addDocument,
+  deleteDocument,
   assignClientToHome,
   addMonitorToHome,
   updateTask,
@@ -497,6 +516,16 @@ const bidUpdateSchema = Joi.object({
     phone: Joi.string().allow(''),
     email: Joi.string().allow(''),
   }).optional(),
+  contacts: Joi.array().items(
+    Joi.object({
+      _id: Joi.string().optional(),
+      company: Joi.string().allow('').optional(),
+      fullName: Joi.string().allow('').optional(),
+      email: Joi.string().email().allow('').optional(),
+      phone: Joi.string().allow('').optional(),
+      isPrimary: Joi.boolean().optional(),
+    })
+  ).optional(),
   totalPrice: Joi.number().min(0).optional(),
   totalPaid: Joi.number().min(0).optional(),
   notes: Joi.string().allow('').optional(),
@@ -535,6 +564,16 @@ async function updateBid(req, res) {
       changedAt: new Date(),
     });
   }
+  if (value.contacts !== undefined && JSON.stringify(value.contacts || []) !== JSON.stringify(currentTrade.contacts || [])) {
+    changeEntries.push({
+      _id: uuidv4(),
+      field: 'contacts',
+      oldValue: currentTrade.contacts || [],
+      newValue: value.contacts || [],
+      changedBy: actor,
+      changedAt: new Date(),
+    });
+  }
   if (value.notes !== undefined && String(value.notes || '') !== String(currentTrade.notes || '')) {
     changeEntries.push({
       _id: uuidv4(),
@@ -547,6 +586,14 @@ async function updateBid(req, res) {
   }
   const set = {};
   if (value.vendor !== undefined) set['trades.$.vendor'] = value.vendor;
+  if (value.contacts !== undefined) set['trades.$.contacts'] = (value.contacts || []).map(c => ({
+    _id: c._id || uuidv4(),
+    company: c.company || '',
+    fullName: c.fullName || '',
+    email: c.email || '',
+    phone: c.phone || '',
+    isPrimary: !!c.isPrimary,
+  }));
   if (value.totalPrice !== undefined) set['trades.$.totalPrice'] = value.totalPrice;
   if (value.totalPaid !== undefined) set['trades.$.totalPaid'] = value.totalPaid;
   if (value.notes !== undefined) set['trades.$.notes'] = value.notes;

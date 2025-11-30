@@ -15,6 +15,7 @@ const myRouter = require('./routes/my');
 const templatesRouter = require('./routes/templates');
 const messagesRouter = require('./routes/messages');
 const fileStorageRouter = require('./routes/uploadToFileStorage');
+const aiRouter = require('./routes/ai');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
@@ -53,6 +54,7 @@ app.use('/api/my', myRouter);
 app.use('/api/templates', templatesRouter);
 app.use('/api/homes', messagesRouter);
 app.use('/api/file-storage', fileStorageRouter);
+app.use('/api/ai', aiRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

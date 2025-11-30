@@ -11,6 +11,7 @@ import HomeSchedule from './pages/HomeSchedule.jsx'
 import HomeTrades from './pages/HomeTrades.jsx'
 import HomeBidDetail from './pages/HomeBidDetail.jsx'
 import HomeBudget from './pages/HomeBudget.jsx'
+import HomeDashboard from './pages/HomeDashboard.jsx'
 import Templates from './pages/Templates.jsx'
 import HomeMessages from './pages/HomeMessages.jsx'
 import TemplateEditor from './pages/TemplateEditor.jsx'
@@ -25,7 +26,8 @@ function App() {
       <Route element={<SideNavLayout />}>
         <Route path="/account" element={<Account />} />
         <Route path="/homes" element={<HomeList />} />
-        <Route path="/homes/:id" element={<Navigate to="preconstruction" replace />} />
+        <Route path="/homes/:id" element={<Navigate to="dashboard" replace />} />
+        <Route path="/homes/:id/dashboard" element={<HomeDashboard />} />
         <Route path="/homes/:id/:phase" element={<HomeDetail />} />
         <Route path="/homes/:id/trades" element={<HomeTrades />} />
         <Route path="/homes/:id/trades/:bidId" element={<HomeBidDetail />} />

@@ -23,6 +23,7 @@ import ContactsIcon from '@mui/icons-material/Contacts'
 import EventIcon from '@mui/icons-material/Event'
 import BuildIcon from '@mui/icons-material/Build'
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney'
+import DashboardIcon from '@mui/icons-material/Dashboard'
 import AppBar from '@mui/material/AppBar'
 import Toolbar from '@mui/material/Toolbar'
 import IconButton from '@mui/material/IconButton'
@@ -177,6 +178,12 @@ export default function SideNavLayout() {
               <ListSubheader component="div" disableSticky sx={{ bgcolor: 'transparent', color: 'text.secondary', fontSize: 12, lineHeight: '28px' }}>
                 General
               </ListSubheader>
+              <ListItem disablePadding>
+                <ListItemButton selected={location.pathname.includes('/dashboard')} onClick={() => go(`/homes/${currentHomeId}/dashboard`)}>
+                  <ListItemIcon><DashboardIcon /></ListItemIcon>
+                  <ListItemText primary="Dashboard" />
+                </ListItemButton>
+              </ListItem>
               <ListItem disablePadding>
                 <ListItemButton selected={location.pathname.includes('/budget')} onClick={() => go(`/homes/${currentHomeId}/budget`)}>
                   <ListItemIcon><AttachMoneyIcon /></ListItemIcon>

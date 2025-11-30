@@ -70,6 +70,18 @@ const TaskSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const TradeContactSchema = new mongoose.Schema(
+  {
+    _id: { type: String, default: uuidv4 },
+    company: { type: String, default: '' },
+    fullName: { type: String, default: '' },
+    email: { type: String, default: '' },
+    phone: { type: String, default: '' },
+    isPrimary: { type: Boolean, default: false },
+  },
+  { _id: false }
+);
+
 const TradeSchema = new mongoose.Schema(
   {
     _id: { type: String, default: uuidv4 },
@@ -82,6 +94,7 @@ const TradeSchema = new mongoose.Schema(
       phone: String,
       email: String,
     },
+    contacts: [TradeContactSchema],
     contractSignedAt: { type: Date },
     totalPrice: { type: Number, default: 0 },
     totalPaid: { type: Number, default: 0 },

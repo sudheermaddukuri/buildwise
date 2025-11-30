@@ -34,6 +34,7 @@ export const api = {
   addHomeQualityCheck: (homeId, bidId, body) => apiRequest(`/homes/${homeId}/trades/${bidId}/quality-checks`, { method: 'POST', body: JSON.stringify(body) }),
   addSchedule: (homeId, body) => apiRequest(`/homes/${homeId}/schedules`, { method: 'POST', body: JSON.stringify(body) }),
   addDocument: (homeId, body) => apiRequest(`/homes/${homeId}/documents`, { method: 'POST', body: JSON.stringify(body) }),
+  deleteDocument: (homeId, docId) => apiRequest(`/homes/${homeId}/documents/${encodeURIComponent(docId)}`, { method: 'DELETE' }),
   // Presign no longer supported after switching to server-style aws-sdk v2 upload
   presignUpload: () => Promise.reject(new Error('Presigned uploads are no longer supported')),
   uploadTaskFile: async (homeId, taskId, file, title) => {
@@ -157,6 +158,9 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(planId ? { action, planId } : { action })
     }),
+  // AI analyze: upload files (by URL) and let OpenAI read them directly (supports PDFs with diagrams)
+  analyzeDocuments: ({ urls, prompt }) =>
+    apiRequest('/ai/analyze-files', { method: 'POST', body: JSON.stringify({ urls, prompt }) }),
 }
 
 

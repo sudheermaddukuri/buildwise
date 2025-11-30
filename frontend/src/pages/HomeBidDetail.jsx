@@ -17,6 +17,7 @@ import Dialog from '@mui/material/Dialog'
 import DialogTitle from '@mui/material/DialogTitle'
 import DialogContent from '@mui/material/DialogContent'
 import DialogActions from '@mui/material/DialogActions'
+import CircularProgress from '@mui/material/CircularProgress'
 import IconButton from '@mui/material/IconButton'
 import AddPhotoAlternateIcon from '@mui/icons-material/AddPhotoAlternate'
 import SendIcon from '@mui/icons-material/Send'
@@ -24,6 +25,14 @@ import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline'
 import Chip from '@mui/material/Chip'
 import CloseIcon from '@mui/icons-material/Close'
 import UploadDocumentDialog from '../components/UploadDocumentDialog.jsx'
+import Tabs from '@mui/material/Tabs'
+import Tab from '@mui/material/Tab'
+import Radio from '@mui/material/Radio'
+import RadioGroup from '@mui/material/RadioGroup'
+import FormControlLabel from '@mui/material/FormControlLabel'
+import EditIcon from '@mui/icons-material/Edit'
+import AddIcon from '@mui/icons-material/Add'
+import Tooltip from '@mui/material/Tooltip'
 
 export default function HomeBidDetail() {
   const { id, bidId } = useParams()
@@ -32,6 +41,8 @@ export default function HomeBidDetail() {
   const [edit, setEdit] = useState(null)
   const [docForm, setDocForm] = useState({ title: '', url: '' })
   const [contactEditMode, setContactEditMode] = useState(false)
+  const [contacts, setContacts] = useState([])
+  const [contactDialog, setContactDialog] = useState({ open: false, idx: -1, company: '', fullName: '', email: '', phone: '', isPrimary: false })
   const [invoiceForm, setInvoiceForm] = useState({ label: '', amount: '', dueDate: '' })
   const [priceEditMode, setPriceEditMode] = useState(false)
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false)
@@ -42,6 +53,18 @@ export default function HomeBidDetail() {
   const [msgText, setMsgText] = useState('')
   const [msgFiles, setMsgFiles] = useState([])
   const [preview, setPreview] = useState({ open: false, url: '', title: '' })
+  const [aiOpen, setAiOpen] = useState(false)
+  const [aiPrompt, setAiPrompt] = useState('Summarize the key risks, assumptions, scope gaps, and any missing information across these trade documents. Highlight potential cost or schedule impacts and suggest follow-ups.')
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiResult, setAiResult] = useState('')
+  // Task modal state (same format as Progress by phase pages)
+  const [taskModal, setTaskModal] = useState({ open: false, bidId: '', task: null })
+  const [taskEdit, setTaskEdit] = useState({ title: '', description: '' })
+  const [schedForm, setSchedForm] = useState({ title: '', startsAt: '', endsAt: '' })
+  const [taskMessages, setTaskMessages] = useState([])
+  const [taskMsgText, setTaskMsgText] = useState('')
+  const [taskMsgFiles, setTaskMsgFiles] = useState([])
+  const [taskUploadOpen, setTaskUploadOpen] = useState(false)
 
   useEffect(() => {
     api.getHome(id).then((h) => {
@@ -51,7 +74,22 @@ export default function HomeBidDetail() {
         setEdit({ vendor: { ...(b.vendor || {}) }, totalPrice: b.totalPrice || 0, totalPaid: b.totalPaid || 0, notes: b.notes || '' })
         const v = b.vendor || {}
         const hasVendor = Boolean(v.name || v.contactName || v.email || v.phone)
-        setContactEditMode(!hasVendor)
+        setContactEditMode(false)
+        // initialize contacts from trade or derive from vendor if none
+        if (Array.isArray(b.contacts) && b.contacts.length) {
+          setContacts(b.contacts)
+        } else if (hasVendor) {
+          setContacts([{
+            _id: '',
+            company: v.name || '',
+            fullName: v.contactName || '',
+            email: v.email || '',
+            phone: v.phone || '',
+            isPrimary: true
+          }])
+        } else {
+          setContacts([])
+        }
       }
     }).catch((e) => setError(e.message))
   }, [id, bidId])
@@ -80,12 +118,57 @@ export default function HomeBidDetail() {
   }
   const bidSchedules = useMemo(() => (home?.schedules || []).filter((s) => s.bidId === bidId), [home, bidId])
   const qualityChecks = useMemo(() => (bid?.qualityChecks || []), [bid])
+  const upcomingSchedules = useMemo(() => {
+    const now = Date.now()
+    return (home?.schedules || []).filter((s) => s.bidId === bidId && s.startsAt && new Date(s.startsAt).getTime() > now)
+  }, [home, bidId])
+  const [workTab, setWorkTab] = useState(0) // 0=Tasks,1=Quality
+  const [finTab, setFinTab] = useState(0) // 0=Pricing,1=Invoices
+  const [infoTab, setInfoTab] = useState(0) // 0=Schedules,1=Contracts,2=Messages
+  const [addDialog, setAddDialog] = useState({ open: false, mode: 'task', bidId, title: '', desc: '', phaseKey: 'preconstruction' })
 
   async function save() {
     setError('')
     try {
       const updated = await api.updateBid(id, bidId, edit)
       setHome(updated)
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+  async function saveContacts() {
+    setError('')
+    try {
+      const normalized = contacts.map((c, i) => ({
+        _id: c._id || undefined,
+        company: c.company || '',
+        fullName: c.fullName || '',
+        email: c.email || '',
+        phone: c.phone || '',
+        isPrimary: !!c.isPrimary
+      }))
+      // ensure single primary
+      if (normalized.filter(c => c.isPrimary).length === 0 && normalized.length) {
+        normalized[0].isPrimary = true
+      } else if (normalized.filter(c => c.isPrimary).length > 1) {
+        const firstIdx = normalized.findIndex(c => c.isPrimary)
+        normalized.forEach((c, idx) => { if (idx !== firstIdx) c.isPrimary = false })
+      }
+      // also sync vendor with primary contact for quick reference
+      const primary = normalized.find(c => c.isPrimary)
+      const vendor = primary ? {
+        name: primary.company || '',
+        contactName: primary.fullName || '',
+        email: primary.email || '',
+        phone: primary.phone || ''
+      } : { name: '', contactName: '', email: '', phone: '' }
+      const updated = await api.updateBid(id, bidId, { contacts: normalized, vendor })
+      setHome(updated)
+      // replace with latest server values
+      const updatedBid = (updated?.trades || []).find((t) => t._id === bidId)
+      setContacts(updatedBid?.contacts || [])
+      setEdit((v) => ({ ...v, vendor: updatedBid?.vendor || vendor }))
+      setContactEditMode(false)
     } catch (e) {
       setError(e.message)
     }
@@ -131,6 +214,62 @@ export default function HomeBidDetail() {
       const next = t.status === 'done' ? 'todo' : 'done'
       const updated = await api.updateTask(id, bidId, t._id, { status: next })
       setHome(updated)
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+  function openTask(task) {
+    setTaskModal({ open: true, bidId, task })
+    setTaskEdit({ title: task.title, description: task.description || '' })
+    setSchedForm({ title: '', startsAt: '', endsAt: '' })
+    setTaskMsgText('')
+    setTaskMsgFiles([])
+    api.listMessages(id, { taskId: task._id, limit: 50 }).then(setTaskMessages).catch(() => {})
+  }
+  function closeTask() {
+    setTaskModal({ open: false, bidId: '', task: null })
+  }
+  async function saveTaskDetails() {
+    try {
+      const updated = await api.updateTask(id, bidId, taskModal.task._id, {
+        title: taskEdit.title,
+        description: taskEdit.description
+      })
+      setHome(updated)
+      closeTask()
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+  async function createTaskSchedule() {
+    try {
+      const payload = {
+        title: schedForm.title,
+        startsAt: schedForm.startsAt ? new Date(schedForm.startsAt).toISOString() : undefined,
+        endsAt: schedForm.endsAt ? new Date(schedForm.endsAt).toISOString() : undefined,
+        bidId,
+        taskId: taskModal.task._id
+      }
+      const res = await api.addSchedule(id, payload)
+      setHome(res.home)
+      setSchedForm({ title: '', startsAt: '', endsAt: '' })
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+  async function sendTaskMessage() {
+    setError('')
+    try {
+      const attachments = []
+      for (const f of taskMsgFiles) {
+        // reuse presigned upload used for trade messages
+        attachments.push(await presignedUpload(f))
+      }
+      await api.createMessage(id, { text: taskMsgText, tradeId: bidId, taskId: taskModal.task._id, attachments })
+      setTaskMsgText('')
+      setTaskMsgFiles([])
+      const list = await api.listMessages(id, { taskId: taskModal.task._id, limit: 50 })
+      setTaskMessages(list || [])
     } catch (e) {
       setError(e.message)
     }
@@ -205,197 +344,331 @@ export default function HomeBidDetail() {
       {error && <Alert severity="error">{error}</Alert>}
 
       <Paper variant="outlined" sx={{ p: 2 }}>
-        <Typography variant="subtitle1" gutterBottom>Trade Contact</Typography>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center" justifyContent="space-between">
+          <Typography variant="subtitle1">Contacts</Typography>
+          {!contactEditMode ? (
+            <Button variant="outlined" onClick={() => setContactEditMode(true)} startIcon={<EditIcon />}>Manage</Button>
+          ) : (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Button variant="text" onClick={() => { setContactEditMode(false); setContacts(bid.contacts || contacts) }}>Cancel</Button>
+              <Button variant="contained" onClick={saveContacts}>Save</Button>
+            </Box>
+          )}
+        </Stack>
         {!contactEditMode ? (
-          <Box>
-            <Typography variant="body2"><strong>Company:</strong> {bid.vendor?.name || '—'}</Typography>
-            <Typography variant="body2"><strong>Contact:</strong> {bid.vendor?.contactName || '—'}</Typography>
-            <Typography variant="body2"><strong>Email:</strong> {bid.vendor?.email || '—'}</Typography>
-            <Typography variant="body2"><strong>Phone:</strong> {bid.vendor?.phone || '—'}</Typography>
+          <Box sx={{ mt: 1 }}>
+            {(Array.isArray(bid.contacts) ? bid.contacts : []).length ? (
+              <List dense disablePadding>
+                {bid.contacts.map((c, idx) => (
+                  <div key={c._id || idx}>
+                    <ListItem>
+                      <ListItemText
+                        primary={`${c.fullName || '—'} ${c.isPrimary ? '(Primary)' : ''}`}
+                        secondary={<span>{[c.company || '—', c.email || '—', c.phone || '—'].join(' • ')}</span>}
+                      />
+                    </ListItem>
+                    {idx < (bid.contacts.length - 1) && <Divider component="li" />}
+                  </div>
+                ))}
+              </List>
+            ) : (
+              <Typography variant="body2" color="text.secondary">No contact information</Typography>
+            )}
             <Typography variant="body2" sx={{ mt: 1 }}><strong>Notes:</strong> {bid.notes || '—'}</Typography>
-            <Button sx={{ mt: 2 }} variant="outlined" onClick={() => setContactEditMode(true)}>Edit Contact</Button>
           </Box>
         ) : (
-          <Stack spacing={2}>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <TextField label="Vendor Company" value={edit?.vendor?.name || ''} onChange={(e) => setEdit((v) => ({ ...v, vendor: { ...(v?.vendor || {}), name: e.target.value } }))} fullWidth />
-              <TextField label="Contact Name" value={edit?.vendor?.contactName || ''} onChange={(e) => setEdit((v) => ({ ...v, vendor: { ...(v?.vendor || {}), contactName: e.target.value } }))} fullWidth />
+          <Box sx={{ mt: 1 }}>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+              <Typography variant="body2" color="text.secondary">Add or edit contacts. Only one can be primary.</Typography>
+              <Button size="small" startIcon={<AddIcon />} onClick={() => setContactDialog({ open: true, idx: -1, company: '', fullName: '', email: '', phone: '', isPrimary: contacts.length === 0 })}>
+                Add Contact
+              </Button>
             </Stack>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <TextField label="Email" value={edit?.vendor?.email || ''} onChange={(e) => setEdit((v) => ({ ...v, vendor: { ...(v?.vendor || {}), email: e.target.value } }))} fullWidth />
-              <TextField label="Phone" value={edit?.vendor?.phone || ''} onChange={(e) => setEdit((v) => ({ ...v, vendor: { ...(v?.vendor || {}), phone: e.target.value } }))} fullWidth />
-            </Stack>
-            <TextField label="Notes" value={edit?.notes || ''} onChange={(e) => setEdit((v) => ({ ...v, notes: e.target.value }))} />
-            <Stack direction="row" spacing={1}>
-              <Button variant="contained" onClick={save}>Save</Button>
-              <Button variant="text" onClick={() => { setContactEditMode(false); setEdit({ vendor: { ...(bid.vendor || {}) }, totalPrice: bid.totalPrice || 0, totalPaid: bid.totalPaid || 0, notes: bid.notes || '' }) }}>Cancel</Button>
-            </Stack>
-          </Stack>
+            <List dense disablePadding>
+              {contacts.map((c, idx) => (
+                <div key={c._id || idx}>
+                  <ListItem
+                    secondaryAction={
+                      <Button size="small" variant="text" onClick={() => setContactDialog({ open: true, idx, company: c.company || '', fullName: c.fullName || '', email: c.email || '', phone: c.phone || '', isPrimary: !!c.isPrimary })}>
+                        Edit
+                      </Button>
+                    }
+                  >
+                    <Radio
+                      checked={!!c.isPrimary}
+                      onChange={() => setContacts((arr) => arr.map((x, i) => ({ ...x, isPrimary: i === idx })))}
+                    />
+                    <ListItemText primary={`${c.fullName || '—'} ${c.isPrimary ? '(Primary)' : ''}`} secondary={<span>{[c.company || '—', c.email || '—', c.phone || '—'].join(' • ')}</span>} />
+                  </ListItem>
+                  {idx < contacts.length - 1 && <Divider component="li" />}
+                </div>
+              ))}
+              {!contacts.length && <Typography variant="body2" color="text.secondary">No contact information</Typography>}
+            </List>
+            <TextField sx={{ mt: 2 }} label="Notes" value={edit?.notes || ''} onChange={(e) => setEdit((v) => ({ ...v, notes: e.target.value }))} fullWidth />
+          </Box>
         )}
       </Paper>
 
       <Paper variant="outlined" sx={{ p: 2 }}>
-        <Typography variant="subtitle1" gutterBottom>Quality Checks</Typography>
-        <List dense disablePadding>
-          {qualityChecks.map((qc, idx) => (
-            <div key={qc._id}>
-              <ListItem
-                secondaryAction={
-                  <Button
-                    size="small"
-                    variant={qc.accepted ? 'outlined' : 'contained'}
-                    onClick={async () => {
-                      try {
-                        const updated = await api.updateQualityCheck(id, bidId, qc._id, { accepted: !qc.accepted, acceptedBy: localStorage.getItem('userEmail') || '' })
-                        setHome(updated)
-                      } catch (e) {
-                        setError(e.message)
-                      }
-                    }}
+        <Stack direction="row" alignItems="center" justifyContent="space-between">
+          <Typography variant="subtitle1">Work</Typography>
+          <Tabs value={workTab} onChange={(_, v) => setWorkTab(v)} aria-label="work tabs">
+            <Tab label="Tasks" />
+            <Tab label="Quality Checks" />
+            <Tab label="Contracts" />
+          </Tabs>
+        </Stack>
+        <Divider sx={{ my: 1 }} />
+        {workTab === 0 ? (
+          <Box>
+            <Stack direction="row" justifyContent="flex-end" sx={{ mb: 1 }}>
+              <Button size="small" variant="contained" onClick={() => setAddDialog({ open: true, mode: 'task', bidId, title: '', desc: '', phaseKey: (bid.phaseKeys || [])[0] || 'preconstruction' })}>
+                Add Task
+              </Button>
+            </Stack>
+            <List dense disablePadding>
+              {(bid.tasks || []).map((t, idx) => (
+                <div key={t._id}>
+                  <ListItem
+                    secondaryAction={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <Tooltip title="Edit Task">
+                          <IconButton size="small" onClick={() => openTask(t)}>
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Checkbox edge="end" checked={t.status === 'done'} onChange={() => toggleTask(t)} />
+                      </Box>
+                    }
                   >
-                    {qc.accepted ? 'Reopen' : 'Mark Accepted'}
-                  </Button>
-                }
-              >
-                <ListItemText
-                  primary={qc.title}
-                  secondary={[
-                    `Phase: ${qc.phaseKey}`,
-                    qc.accepted ? `Accepted${qc.acceptedBy ? ` by ${qc.acceptedBy}` : ''}${qc.acceptedAt ? ` @ ${new Date(qc.acceptedAt).toLocaleString()}` : ''}` : 'Pending'
-                  ].join(' • ')}
-                />
-              </ListItem>
-              {idx < qualityChecks.length - 1 && <Divider component="li" />}
-            </div>
-          ))}
-          {!qualityChecks.length && <Typography variant="body2" color="text.secondary">No quality checks</Typography>}
-        </List>
-      </Paper>
-
-      <Paper variant="outlined" sx={{ p: 2 }}>
-        <Typography variant="subtitle1" gutterBottom>Pricing & Invoices</Typography>
-        <Stack spacing={2}>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
-            {!priceEditMode ? (
-              <>
-                <Typography variant="body1"><strong>Total Trade Price:</strong> {fmtCurrency(bid.totalPrice ?? 0)}</Typography>
-                <Button variant="outlined" onClick={() => { setPriceEditMode(true); setEdit((v) => ({ ...v, totalPrice: bid.totalPrice ?? 0 })) }}>Edit Price</Button>
-                <Box sx={{ flex: 1 }} />
-                <Typography variant="body2"><strong>Paid:</strong> {fmtCurrency(paidSum)}</Typography>
-                <Typography variant="body2"><strong>Outstanding:</strong> {fmtCurrency(outstanding)}</Typography>
-              </>
-            ) : (
-              <>
-                <TextField
-                  label="Total Trade Price"
-                  type="number"
-                  value={edit?.totalPrice ?? 0}
-                  onChange={(e) => setEdit((v) => ({ ...v, totalPrice: Number(e.target.value) }))}
-                  sx={{ maxWidth: 260 }}
-                />
-                <Button variant="contained" onClick={async () => { await save(); setPriceEditMode(false) }}>Save</Button>
-                <Button variant="text" onClick={() => { setPriceEditMode(false); setEdit((v) => ({ ...v, totalPrice: bid.totalPrice ?? 0 })) }}>Cancel</Button>
-                <Box sx={{ flex: 1 }} />
-                <Typography variant="body2"><strong>Paid:</strong> {fmtCurrency(paidSum)}</Typography>
-                <Typography variant="body2"><strong>Outstanding:</strong> {fmtCurrency(outstanding)}</Typography>
-              </>
-            )}
-          </Stack>
-          <Divider />
-          <Button variant="contained" onClick={() => setInvoiceDialogOpen(true)}>Add New Invoice</Button>
-          <List dense disablePadding sx={{ mt: 1 }}>
-            {invoices.map((inv, idx) => (
-              <div key={inv._id}>
-                <ListItem
-                  secondaryAction={
-                    <Button size="small" variant="text" onClick={() => toggleInvoicePaid(inv._id, inv.paid)}>
-                      {inv.paid ? 'Mark Unpaid' : 'Mark Paid'}
-                    </Button>
-                  }
-                >
-                  <ListItemText
-                    primary={`${inv.label} — ${fmtCurrency(inv.amount)} ${inv.paid ? '(Paid)' : ''}`}
-                    secondary={inv.dueDate ? `Due: ${new Date(inv.dueDate).toLocaleDateString()}` : undefined}
-                  />
-                </ListItem>
-                {idx < invoices.length - 1 && <Divider component="li" />}
-              </div>
-            ))}
-            {!invoices.length && <Typography variant="body2" color="text.secondary">No invoices yet</Typography>}
-          </List>
-        </Stack>
-      </Paper>
-
-      <Paper variant="outlined" sx={{ p: 2 }}>
-        <Typography variant="subtitle1" gutterBottom>Trade Messages</Typography>
-        <List dense disablePadding sx={{ mb: 2 }}>
-          {msgList.map((m, idx) => (
-            <div key={m._id}>
-              <ListItem>
-                <ListItemText
-                  primary={m.text}
-                  secondary={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                      {m.author?.fullName || m.author?.email ? <Chip size="small" label={m.author?.fullName || m.author?.email} /> : null}
-                      {(m.attachments || []).map((a, i) => (
-                        <a
-                          key={`${m._id}-a-${i}`}
-                          href={a.url}
-                          onClick={(e) => { e.preventDefault(); openPreview(a.url, a.title || `Attachment ${i + 1}`) }}
-                        >
-                          {a.title || `Attachment ${i + 1}`}
+                    <ListItemText primary={t.title} secondary={`Phase: ${t.phaseKey}`} />
+                  </ListItem>
+                  {idx < (bid.tasks || []).length - 1 && <Divider component="li" />}
+                </div>
+              ))}
+              {!bid.tasks?.length && <Typography variant="body2" color="text.secondary">No tasks</Typography>}
+            </List>
+          </Box>
+        ) : workTab === 1 ? (
+          <Box>
+            <Stack direction="row" justifyContent="flex-end" sx={{ mb: 1 }}>
+              <Button size="small" variant="contained" onClick={() => setAddDialog({ open: true, mode: 'check', bidId, title: '', desc: '', phaseKey: (bid.phaseKeys || [])[0] || 'preconstruction' })}>
+                Add Quality Check
+              </Button>
+            </Stack>
+            <List dense disablePadding>
+              {qualityChecks.map((qc, idx) => (
+                <div key={qc._id}>
+                  <ListItem
+                    secondaryAction={
+                      <Button
+                        size="small"
+                        variant={qc.accepted ? 'outlined' : 'contained'}
+                        onClick={async () => {
+                          try {
+                            const updated = await api.updateQualityCheck(id, bidId, qc._id, { accepted: !qc.accepted, acceptedBy: localStorage.getItem('userEmail') || '' })
+                            setHome(updated)
+                          } catch (e) {
+                            setError(e.message)
+                          }
+                        }}
+                      >
+                        {qc.accepted ? 'Reopen' : 'Mark Accepted'}
+                      </Button>
+                    }
+                  >
+                    <ListItemText
+                      primary={qc.title}
+                      secondary={[
+                        `Phase: ${qc.phaseKey}`,
+                        qc.accepted ? `Accepted${qc.acceptedBy ? ` by ${qc.acceptedBy}` : ''}${qc.acceptedAt ? ` @ ${new Date(qc.acceptedAt).toLocaleString()}` : ''}` : 'Pending'
+                      ].join(' • ')}
+                    />
+                  </ListItem>
+                  {idx < qualityChecks.length - 1 && <Divider component="li" />}
+                </div>
+              ))}
+              {!qualityChecks.length && <Typography variant="body2" color="text.secondary">No quality checks</Typography>}
+            </List>
+          </Box>
+        ) : (
+          <Box>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center" justifyContent="space-between">
+              <Typography variant="subtitle2">Contracts / Documents</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Button variant="outlined" onClick={() => { setAiResult(''); setAiOpen(true) }}>Analyze with AI</Button>
+                <Button variant="contained" onClick={() => setDocDialogOpen(true)}>Upload</Button>
+              </Box>
+            </Stack>
+            <List dense disablePadding sx={{ mt: 2 }}>
+              {bidDocs.map((d, idx) => (
+                <div key={d._id || `${idx}`}>
+                  <ListItem>
+                    <ListItemText
+                      primary={
+                        <a href={d.url} onClick={(e) => { e.preventDefault(); openPreview(d.url, d.title) }}>
+                          {d.title}
                         </a>
-                      ))}
-                      <span>{new Date(m.createdAt).toLocaleString()}</span>
-                    </Box>
-                  }
-                />
-              </ListItem>
-              {idx < msgList.length - 1 && <Divider component="li" />}
-            </div>
-          ))}
-          {!msgList.length && <Typography variant="body2" color="text.secondary">No messages yet</Typography>}
-        </List>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
-          <ChatBubbleOutlineIcon fontSize="small" />
-          <TextField
-            placeholder="Write a message…"
-            value={msgText}
-            onChange={(e) => setMsgText(e.target.value)}
-            fullWidth
-            size="small"
-          />
-          <IconButton component="label" size="small">
-            <AddPhotoAlternateIcon />
-            <input type="file" accept="image/*" multiple hidden onChange={(e) => setMsgFiles(Array.from(e.target.files || []))} />
-          </IconButton>
-          <IconButton color="primary" onClick={sendTradeMessage} disabled={!msgText}>
-            <SendIcon />
-          </IconButton>
-        </Stack>
+                      }
+                    />
+                  </ListItem>
+                  {idx < bidDocs.length - 1 && <Divider component="li" />}
+                </div>
+              ))}
+              {!bidDocs.length && <Typography variant="body2" color="text.secondary">No trade documents</Typography>}
+            </List>
+          </Box>
+        )}
       </Paper>
 
       <Paper variant="outlined" sx={{ p: 2 }}>
-        <Typography variant="subtitle1" gutterBottom>Contracts / Documents</Typography>
-        <Button variant="contained" onClick={() => setDocDialogOpen(true)}>Add Document</Button>
-        <List dense disablePadding sx={{ mt: 2 }}>
-          {bidDocs.map((d, idx) => (
-            <div key={d._id || `${idx}`}>
-              <ListItem>
-                <ListItemText
-                  primary={
-                    <a href={d.url} onClick={(e) => { e.preventDefault(); openPreview(d.url, d.title) }}>
-                      {d.title}
-                    </a>
-                  }
-                />
-              </ListItem>
-              {idx < bidDocs.length - 1 && <Divider component="li" />}
-            </div>
-          ))}
-          {!bidDocs.length && <Typography variant="body2" color="text.secondary">No trade documents</Typography>}
-        </List>
+        <Stack direction="row" alignItems="center" justifyContent="space-between">
+          <Typography variant="subtitle1">Financials</Typography>
+          <Tabs value={finTab} onChange={(_, v) => setFinTab(v)} aria-label="financial tabs">
+            <Tab label="Pricing" />
+            <Tab label="Invoices" />
+          </Tabs>
+        </Stack>
+        <Divider sx={{ my: 1 }} />
+        {finTab === 0 ? (
+          <Stack spacing={2}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
+              {!priceEditMode ? (
+                <>
+                  <Typography variant="body1"><strong>Total Trade Price:</strong> {fmtCurrency(bid.totalPrice ?? 0)}</Typography>
+                  <Button variant="outlined" onClick={() => { setPriceEditMode(true); setEdit((v) => ({ ...v, totalPrice: bid.totalPrice ?? 0 })) }}>Edit Price</Button>
+                  <Box sx={{ flex: 1 }} />
+                  <Typography variant="body2"><strong>Paid:</strong> {fmtCurrency(paidSum)}</Typography>
+                  <Typography variant="body2"><strong>Outstanding:</strong> {fmtCurrency(outstanding)}</Typography>
+                </>
+              ) : (
+                <>
+                  <TextField
+                    label="Total Trade Price"
+                    type="number"
+                    value={edit?.totalPrice ?? 0}
+                    onChange={(e) => setEdit((v) => ({ ...v, totalPrice: Number(e.target.value) }))}
+                    sx={{ maxWidth: 260 }}
+                  />
+                  <Button variant="contained" onClick={async () => { await save(); setPriceEditMode(false) }}>Save</Button>
+                  <Button variant="text" onClick={() => { setPriceEditMode(false); setEdit((v) => ({ ...v, totalPrice: bid.totalPrice ?? 0 })) }}>Cancel</Button>
+                  <Box sx={{ flex: 1 }} />
+                  <Typography variant="body2"><strong>Paid:</strong> {fmtCurrency(paidSum)}</Typography>
+                  <Typography variant="body2"><strong>Outstanding:</strong> {fmtCurrency(outstanding)}</Typography>
+                </>
+              )}
+            </Stack>
+          </Stack>
+        ) : (
+          <Box>
+            <Stack direction="row" justifyContent="flex-end" sx={{ mb: 1 }}>
+              <Button variant="contained" onClick={() => setInvoiceDialogOpen(true)}>Add New Invoice</Button>
+            </Stack>
+            <List dense disablePadding>
+              {invoices.map((inv, idx) => (
+                <div key={inv._id}>
+                  <ListItem
+                    secondaryAction={
+                      <Button size="small" variant="text" onClick={() => toggleInvoicePaid(inv._id, inv.paid)}>
+                        {inv.paid ? 'Mark Unpaid' : 'Mark Paid'}
+                      </Button>
+                    }
+                  >
+                    <ListItemText
+                      primary={`${inv.label} — ${fmtCurrency(inv.amount)} ${inv.paid ? '(Paid)' : ''}`}
+                      secondary={inv.dueDate ? `Due: ${new Date(inv.dueDate).toLocaleDateString()}` : undefined}
+                    />
+                  </ListItem>
+                  {idx < invoices.length - 1 && <Divider component="li" />}
+                </div>
+              ))}
+              {!invoices.length && <Typography variant="body2" color="text.secondary">No invoices yet</Typography>}
+            </List>
+          </Box>
+        )}
       </Paper>
+
+      <Paper variant="outlined" sx={{ p: 2 }}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between">
+          <Typography variant="subtitle1">Info</Typography>
+          <Tabs value={infoTab} onChange={(_, v) => setInfoTab(v)} aria-label="info tabs">
+            <Tab label="Schedules" />
+            <Tab label="Messages" />
+          </Tabs>
+        </Stack>
+        <Divider sx={{ my: 1 }} />
+        {infoTab === 0 && (
+          <Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Upcoming schedules</Typography>
+            <List dense disablePadding>
+              {upcomingSchedules.map((s, idx) => (
+                <div key={s._id}>
+                  <ListItem>
+                    <ListItemText
+                      primary={s.title}
+                      secondary={`${new Date(s.startsAt).toLocaleString()} → ${new Date(s.endsAt).toLocaleString()}`}
+                    />
+                  </ListItem>
+                  {idx < upcomingSchedules.length - 1 && <Divider component="li" />}
+                </div>
+              ))}
+              {!upcomingSchedules.length && <Typography variant="body2" color="text.secondary">No upcoming schedules</Typography>}
+            </List>
+          </Box>
+        )}
+        {infoTab === 1 && (
+          <Box>
+            <List dense disablePadding sx={{ mb: 2 }}>
+              {msgList.map((m, idx) => (
+                <div key={m._id}>
+                  <ListItem>
+                    <ListItemText
+                      primary={m.text}
+                      secondary={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                          {m.author?.fullName || m.author?.email ? <Chip size="small" label={m.author?.fullName || m.author?.email} /> : null}
+                          {(m.attachments || []).map((a, i) => (
+                            <a
+                              key={`${m._id}-a-${i}`}
+                              href={a.url}
+                              onClick={(e) => { e.preventDefault(); openPreview(a.url, a.title || `Attachment ${i + 1}`) }}
+                            >
+                              {a.title || `Attachment ${i + 1}`}
+                            </a>
+                          ))}
+                          <span>{new Date(m.createdAt).toLocaleString()}</span>
+                        </Box>
+                      }
+                    />
+                  </ListItem>
+                  {idx < msgList.length - 1 && <Divider component="li" />}
+                </div>
+              ))}
+              {!msgList.length && <Typography variant="body2" color="text.secondary">No messages yet</Typography>}
+            </List>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
+              <ChatBubbleOutlineIcon fontSize="small" />
+              <TextField
+                placeholder="Write a message…"
+                value={msgText}
+                onChange={(e) => setMsgText(e.target.value)}
+                fullWidth
+                size="small"
+              />
+              <IconButton component="label" size="small">
+                <AddPhotoAlternateIcon />
+                <input type="file" accept="image/*" multiple hidden onChange={(e) => setMsgFiles(Array.from(e.target.files || []))} />
+              </IconButton>
+              <IconButton color="primary" onClick={sendTradeMessage} disabled={!msgText}>
+                <SendIcon />
+              </IconButton>
+            </Stack>
+          </Box>
+        )}
+      </Paper>
+
+      {/* Contracts card moved into Work section as a tab */}
 
       <Dialog open={invoiceDialogOpen} onClose={() => setInvoiceDialogOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>Add New Invoice / Payment</DialogTitle>
@@ -411,6 +684,133 @@ export default function HomeBidDetail() {
           <Button variant="contained" onClick={addInvoice}>Add</Button>
         </DialogActions>
       </Dialog>
+      {/* Add/Edit Contact Dialog */}
+      <Dialog open={contactDialog.open} onClose={() => setContactDialog((d) => ({ ...d, open: false }))} fullWidth maxWidth="sm">
+        <DialogTitle>{contactDialog.idx >= 0 ? 'Edit Contact' : 'Add Contact'}</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField label="Company" value={contactDialog.company} onChange={(e) => setContactDialog((d) => ({ ...d, company: e.target.value }))} fullWidth />
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <TextField label="Full Name" value={contactDialog.fullName} onChange={(e) => setContactDialog((d) => ({ ...d, fullName: e.target.value }))} fullWidth />
+              <TextField label="Phone" value={contactDialog.phone} onChange={(e) => setContactDialog((d) => ({ ...d, phone: e.target.value }))} fullWidth />
+            </Stack>
+            <TextField label="Email" type="email" value={contactDialog.email} onChange={(e) => setContactDialog((d) => ({ ...d, email: e.target.value }))} fullWidth />
+            <RadioGroup
+              row
+              value={contactDialog.isPrimary ? 'yes' : 'no'}
+              onChange={(_, v) => setContactDialog((d) => ({ ...d, isPrimary: v === 'yes' }))}
+            >
+              <FormControlLabel value="yes" control={<Radio />} label="Primary" />
+              <FormControlLabel value="no" control={<Radio />} label="Secondary" />
+            </RadioGroup>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setContactDialog((d) => ({ ...d, open: false }))}>Cancel</Button>
+          <Button variant="contained" onClick={() => {
+            setContacts((arr) => {
+              const next = [...arr]
+              const payload = {
+                ...(contactDialog.idx >= 0 ? next[contactDialog.idx] : {}),
+                company: contactDialog.company,
+                fullName: contactDialog.fullName,
+                email: contactDialog.email,
+                phone: contactDialog.phone,
+                isPrimary: contactDialog.isPrimary
+              }
+              if (contactDialog.idx >= 0) {
+                next[contactDialog.idx] = payload
+              } else {
+                next.push(payload)
+              }
+              // ensure uniqueness of primary
+              if (payload.isPrimary) {
+                const idx = contactDialog.idx >= 0 ? contactDialog.idx : next.length - 1
+                return next.map((c, i) => ({ ...c, isPrimary: i === idx }))
+              }
+              return next
+            })
+            setContactDialog((d) => ({ ...d, open: false }))
+          }}>Save</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Task Details Dialog (same format as Progress by phase pages) */}
+      <Dialog open={taskModal.open} onClose={closeTask} fullWidth maxWidth="sm">
+        <DialogTitle>Task Details</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField
+              label="Title"
+              value={taskEdit.title}
+              onChange={(e) => setTaskEdit((te) => ({ ...te, title: e.target.value }))}
+              fullWidth
+            />
+            <TextField
+              label="Description"
+              value={taskEdit.description}
+              onChange={(e) => setTaskEdit((te) => ({ ...te, description: e.target.value }))}
+              fullWidth
+              multiline
+              minRows={3}
+            />
+            <Typography variant="subtitle2">Create Schedule</Typography>
+            <TextField label="Schedule Title" value={schedForm.title} onChange={(e) => setSchedForm((s) => ({ ...s, title: e.target.value }))} fullWidth />
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <TextField label="Starts At" type="datetime-local" InputLabelProps={{ shrink: true }} value={schedForm.startsAt} onChange={(e) => setSchedForm((s) => ({ ...s, startsAt: e.target.value }))} fullWidth />
+              <TextField label="Ends At" type="datetime-local" InputLabelProps={{ shrink: true }} value={schedForm.endsAt} onChange={(e) => setSchedForm((s) => ({ ...s, endsAt: e.target.value }))} fullWidth />
+            </Stack>
+            <Button variant="outlined" onClick={createTaskSchedule}>Add Schedule</Button>
+            <Typography variant="subtitle2">Upload Document/Photo</Typography>
+            <Button variant="contained" onClick={() => setTaskUploadOpen(true)}>Upload Document</Button>
+            <Divider />
+            <Typography variant="subtitle2">Messages</Typography>
+            <List dense disablePadding>
+              {(taskMessages || []).map((m, idx) => (
+                <div key={m._id}>
+                  <ListItem>
+                    <ListItemText
+                      primary={m.text}
+                      secondary={<span>{new Date(m.createdAt).toLocaleString()}</span>}
+                    />
+                  </ListItem>
+                  {idx < (taskMessages || []).length - 1 && <Divider component="li" />}
+                </div>
+              ))}
+              {!taskMessages.length && <Typography variant="body2" color="text.secondary">No messages yet</Typography>}
+            </List>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
+              <TextField
+                placeholder="Write a message…"
+                value={taskMsgText}
+                onChange={(e) => setTaskMsgText(e.target.value)}
+                fullWidth
+                size="small"
+              />
+              <IconButton component="label" size="small">
+                <AddPhotoAlternateIcon />
+                <input type="file" accept="image/*" multiple hidden onChange={(e) => setTaskMsgFiles(Array.from(e.target.files || []))} />
+              </IconButton>
+              <IconButton color="primary" onClick={sendTaskMessage} disabled={!taskMsgText}>
+                <SendIcon />
+              </IconButton>
+            </Stack>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeTask}>Close</Button>
+          <Button onClick={saveTaskDetails} variant="contained">Save</Button>
+        </DialogActions>
+      </Dialog>
+      <UploadDocumentDialog
+        open={taskUploadOpen}
+        onClose={() => setTaskUploadOpen(false)}
+        homeId={id}
+        trades={home?.trades || []}
+        defaultPinnedType="task"
+        defaultTaskId={taskModal.task?._id || ''}
+        onCompleted={(updatedHome) => setHome(updatedHome)}
+      />
 
       <UploadDocumentDialog
         open={docDialogOpen}
@@ -438,40 +838,114 @@ export default function HomeBidDetail() {
         </DialogContent>
       </Dialog>
 
-      <Paper variant="outlined" sx={{ p: 2 }}>
-        <Typography variant="subtitle1" gutterBottom>Schedules for this Trade</Typography>
-        <List dense disablePadding>
-          {bidSchedules.map((s, idx) => (
-            <div key={s._id}>
-              <ListItem>
-                <ListItemText
-                  primary={s.title}
-                  secondary={`${new Date(s.startsAt).toLocaleString()} → ${new Date(s.endsAt).toLocaleString()}`}
-                />
-              </ListItem>
-              {idx < bidSchedules.length - 1 && <Divider component="li" />}
-            </div>
-          ))}
-          {!bidSchedules.length && <Typography variant="body2" color="text.secondary">No schedules for this bid</Typography>}
-        </List>
-      </Paper>
+      <Dialog open={aiOpen} onClose={() => setAiOpen(false)} fullWidth maxWidth="md">
+        <DialogTitle>Analyze Trade Documents with AI</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            <Typography variant="body2" color="text.secondary">
+              {`Analyzing ${bidDocs.length} document${bidDocs.length === 1 ? '' : 's'}. Adjust the prompt below if needed:`}
+            </Typography>
+            <TextField
+              label="Analysis prompt"
+              multiline
+              minRows={3}
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+              fullWidth
+            />
+            <Box sx={{ maxHeight: 160, overflow: 'auto', border: '1px solid', borderColor: 'divider', p: 1, borderRadius: 1 }}>
+              {bidDocs.map((d, idx) => (
+                <Typography key={d._id || idx} variant="caption" display="block" noWrap title={d.title}>
+                  • {d.title || d.url}
+                </Typography>
+              ))}
+              {!bidDocs.length && <Typography variant="caption" color="text.secondary">No documents attached to this trade.</Typography>}
+            </Box>
+            {aiResult ? (
+              <Box sx={{ border: '1px solid', borderColor: 'divider', p: 1 }}>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>Results</Typography>
+                <Box component="pre" sx={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{aiResult}</Box>
+              </Box>
+            ) : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAiOpen(false)} disabled={aiLoading}>Close</Button>
+          <Button
+            variant="contained"
+            disabled={aiLoading || bidDocs.length === 0 || !aiPrompt.trim()}
+            onClick={async () => {
+              setAiLoading(true)
+              setAiResult('')
+              try {
+                const urls = (bidDocs.map((d) => d.url).filter(Boolean))
+                const resp = await api.analyzeDocuments({ urls, prompt: aiPrompt })
+                setAiResult(resp.result || JSON.stringify(resp, null, 2))
+              } catch (e) {
+                setAiResult(`Error: ${e.message}`)
+              } finally {
+                setAiLoading(false)
+              }
+            }}
+          >
+            {aiLoading ? <CircularProgress size={20} /> : 'Run analysis'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
-      <Paper variant="outlined" sx={{ p: 2 }}>
-        <Typography variant="subtitle1" gutterBottom>Tasks</Typography>
-        <List dense disablePadding>
-          {(bid.tasks || []).map((t, idx) => (
-            <div key={t._id}>
-              <ListItem secondaryAction={
-                <Checkbox edge="end" checked={t.status === 'done'} onChange={() => toggleTask(t)} />
-              }>
-                <ListItemText primary={t.title} secondary={`Phase: ${t.phaseKey}`} />
-              </ListItem>
-              {idx < (bid.tasks || []).length - 1 && <Divider component="li" />}
-            </div>
-          ))}
-          {!bid.tasks?.length && <Typography variant="body2" color="text.secondary">No tasks</Typography>}
-        </List>
-      </Paper>
+      {/* Add Task/Quality Check Dialog */}
+      <Dialog open={addDialog?.open} onClose={() => setAddDialog((d) => ({ ...d, open: false }))} fullWidth maxWidth="sm">
+        <DialogTitle>{addDialog?.mode === 'task' ? 'Add Task' : 'Add Quality Check'}</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField
+              label="Title"
+              value={addDialog?.title || ''}
+              onChange={(e) => setAddDialog((d) => ({ ...d, title: e.target.value }))}
+              fullWidth
+              required
+              autoFocus
+            />
+            <TextField
+              label={addDialog?.mode === 'task' ? 'Description' : 'Notes'}
+              value={addDialog?.desc || ''}
+              onChange={(e) => setAddDialog((d) => ({ ...d, desc: e.target.value }))}
+              fullWidth
+              multiline
+              minRows={2}
+            />
+            <TextField
+              label="Phase"
+              value={(addDialog?.phaseKey) || ((bid.phaseKeys || [])[0] || 'preconstruction')}
+              onChange={(e) => setAddDialog((d) => ({ ...d, phaseKey: e.target.value }))}
+              select
+              fullWidth
+            >
+              {(bid.phaseKeys || ['preconstruction', 'exterior', 'interior']).map((p) => (<option key={p} value={p}>{p}</option>))}
+            </TextField>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAddDialog((d) => ({ ...d, open: false }))}>Cancel</Button>
+          <Button onClick={async () => {
+            setError('')
+            try {
+              if (addDialog.mode === 'task') {
+                const body = { title: addDialog.title, description: addDialog.desc, phaseKey: addDialog.phaseKey || (bid.phaseKeys || [])[0] }
+                const res = await api.addTask(id, bidId, body)
+                setHome(res.home)
+              } else {
+                const body = { title: addDialog.title, notes: addDialog.desc, phaseKey: addDialog.phaseKey || (bid.phaseKeys || [])[0] }
+                const res = await api.addHomeQualityCheck(id, bidId, body)
+                setHome(res.home)
+              }
+              setAddDialog({ open: false, mode: 'task', bidId, title: '', desc: '', phaseKey: (bid.phaseKeys || [])[0] || 'preconstruction' })
+            } catch (e) {
+              setError(e.message)
+            }
+          }} variant="contained" disabled={!addDialog?.title}>Add</Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   )
 }

@@ -35,6 +35,7 @@ router.patch('/:homeId/trades/:bidId/quality-checks/:checkId', require('../contr
 
 router.post('/:homeId/schedules', addSchedule);
 router.post('/:homeId/documents', addDocument);
+router.delete('/:homeId/documents/:docId', require('../controllers/homeController').deleteDocument);
 
 router.post('/:homeId/assign-client', assignClientToHome);
 router.post('/:homeId/monitors', addMonitorToHome);
