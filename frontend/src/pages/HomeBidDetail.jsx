@@ -23,6 +23,7 @@ import SendIcon from '@mui/icons-material/Send'
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline'
 import Chip from '@mui/material/Chip'
 import CloseIcon from '@mui/icons-material/Close'
+import UploadDocumentDialog from '../components/UploadDocumentDialog.jsx'
 
 export default function HomeBidDetail() {
   const { id, bidId } = useParams()
@@ -135,35 +136,33 @@ export default function HomeBidDetail() {
     }
   }
 
-  async function uploadTradeDocument() {
-    if (!docUploadFile) return
-    setError('')
-    try {
-      const uploaded = await api.uploadTradeFile(id, bidId, docUploadFile, docUploadTitle || docUploadFile.name)
-      const fileUrl = uploaded?.data?.fileUrl || uploaded?.fileUrl || ''
-      const fileName = uploaded?.data?.fileName || uploaded?.fileName || (docUploadTitle || docUploadFile.name)
-      if (!fileUrl) throw new Error('Upload succeeded but file URL missing')
-      const resDoc = await api.addDocument(id, {
-        title: fileName,
-        url: fileUrl,
-        pinnedTo: { type: 'trade', id: bidId }
-      })
-      setHome(resDoc.home)
-      setDocUploadFile(null)
-      setDocUploadTitle('')
-      setDocDialogOpen(false)
-    } catch (e) {
-      setError(e.message)
-    }
-  }
+  // Upload handled by shared dialog
 
   function isImage(u) {
     return /\.(png|jpg|jpeg|webp|gif)$/i.test(u || '')
   }
-  function openPreview(url, title) {
-    setPreview({ open: true, url, title })
+  async function openPreview(url, title) {
+    // For PDFs, try to fetch and display via blob URL to bypass attachment headers
+    const isPdf = /\.pdf($|[\?#])/i.test(url || '')
+    if (isPdf) {
+      try {
+        const res = await fetch(url, { mode: 'cors' })
+        const blob = await res.blob()
+        const objUrl = URL.createObjectURL(blob)
+        setPreview({ open: true, url: objUrl, title, isObjectUrl: true })
+        return
+      } catch {
+        // fall back to direct url
+      }
+    }
+    setPreview({ open: true, url, title, isObjectUrl: false })
   }
   function closePreview() {
+    try {
+      if (preview?.isObjectUrl && preview?.url) {
+        URL.revokeObjectURL(preview.url)
+      }
+    } catch {}
     setPreview({ open: false, url: '', title: '' })
   }
 
@@ -413,19 +412,15 @@ export default function HomeBidDetail() {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={docDialogOpen} onClose={() => setDocDialogOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Upload Trade Document</DialogTitle>
-        <DialogContent dividers>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            <TextField label="Title" value={docUploadTitle} onChange={(e) => setDocUploadTitle(e.target.value)} fullWidth />
-            <input type="file" onChange={(e) => setDocUploadFile(e.target.files?.[0] || null)} />
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDocDialogOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={uploadTradeDocument} disabled={!docUploadFile}>Upload</Button>
-        </DialogActions>
-      </Dialog>
+      <UploadDocumentDialog
+        open={docDialogOpen}
+        onClose={() => setDocDialogOpen(false)}
+        homeId={id}
+        trades={home?.trades || []}
+        defaultPinnedType="trade"
+        defaultTradeId={bidId}
+        onCompleted={(updatedHome) => setHome(updatedHome)}
+      />
 
       <Dialog open={preview.open} onClose={closePreview} fullWidth maxWidth="lg">
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

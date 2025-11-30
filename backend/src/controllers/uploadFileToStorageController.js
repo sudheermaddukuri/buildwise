@@ -11,10 +11,16 @@ exports.addFile = async (req, res) => {
   const appId = auth?.currentApp?.id;
   try {
     // Upload file to S3
+    const contentType = req.file.mimetype || 'application/octet-stream';
+    const isInlineType = /^image\//.test(contentType) || contentType === 'application/pdf';
     const s3Response = await uploadFile('nexsense',
       (appId ? (appId + '/') : '') + folderName,
       filePath,
       fileName,// Default bucket name
+      {
+        contentType,
+        contentDisposition: isInlineType ? 'inline' : undefined
+      }
     );
 
     // Send response with S3 URL

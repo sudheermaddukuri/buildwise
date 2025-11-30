@@ -19,7 +19,7 @@ class AwsS3Service {
    * @param {string} fileName - Name to be used in S3 (optional)
    * @returns {Promise<string>} - Returns the S3 URL of the uploaded file
    */
-  async uploadFile(bucketName, folderName, filePath, fileName = null) {
+  async uploadFile(bucketName, folderName, filePath, fileName = null, options = {}) {
     try {
       const fileContent = fs.readFileSync(filePath);
       const uploadFileName = fileName || path.basename(filePath);
@@ -28,7 +28,10 @@ class AwsS3Service {
       const params = {
         Bucket: bucketName,
         Key: key,
-        Body: fileContent
+        Body: fileContent,
+        // Ensure files can be viewed inline when possible
+        ContentType: options.contentType || undefined,
+        ContentDisposition: options.contentDisposition || undefined,
       };
 
       const result = await s3.upload(params).promise();

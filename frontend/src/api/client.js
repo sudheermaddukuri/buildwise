@@ -88,6 +88,24 @@ export const api = {
     }
     return res.json()
   },
+  uploadHomeFile: async (homeId, file, title) => {
+    const form = new FormData()
+    if (title) form.append('title', title)
+    form.append('file', file)
+    form.append('folderName', `homes/${homeId}/documents`)
+    const res = await fetch(`${API_BASE}/file-storage/upload`, {
+      method: 'POST',
+      headers: {
+        ...(localStorage.getItem('token') ? { Authorization: `Bearer ${localStorage.getItem('token')}` } : {})
+      },
+      body: form
+    })
+    if (!res.ok) {
+      const txt = await res.text()
+      throw new Error(txt || `Upload failed: ${res.status}`)
+    }
+    return res.json()
+  },
   listPeople: (role) => apiRequest(`/people${role ? `?role=${encodeURIComponent(role)}` : ''}`),
   upsertPerson: (body) => apiRequest('/people', { method: 'POST', body: JSON.stringify(body) }),
   onboardingCreate: (body) => apiRequest('/onboarding', { method: 'POST', body: JSON.stringify(body) }),

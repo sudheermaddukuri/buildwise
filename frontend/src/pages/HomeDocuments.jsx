@@ -24,6 +24,7 @@ import DialogTitle from '@mui/material/DialogTitle'
 import DialogContent from '@mui/material/DialogContent'
 import IconButton from '@mui/material/IconButton'
 import CloseIcon from '@mui/icons-material/Close'
+import UploadDocumentDialog from '../components/UploadDocumentDialog.jsx'
 
 export default function HomeDocuments() {
   const { id } = useParams()
@@ -35,6 +36,7 @@ export default function HomeDocuments() {
   const [pinType, setPinType] = useState('home')
   const [pinId, setPinId] = useState('')
   const [preview, setPreview] = useState({ open: false, url: '', title: '' })
+  const [uploadOpen, setUploadOpen] = useState(false)
 
   useEffect(() => {
     api.getHome(id).then(setHome).catch((e) => setError(e.message))
@@ -71,10 +73,27 @@ export default function HomeDocuments() {
     }
   }
 
-  function openPreview(url, title) {
-    setPreview({ open: true, url, title })
+  async function openPreview(url, title) {
+    // For PDFs, try to fetch and display via blob URL to bypass attachment headers
+    if (isPdf(url)) {
+      try {
+        const res = await fetch(url, { mode: 'cors' })
+        const blob = await res.blob()
+        const objUrl = URL.createObjectURL(blob)
+        setPreview({ open: true, url: objUrl, title, isObjectUrl: true })
+        return
+      } catch {
+        // fall back to direct url
+      }
+    }
+    setPreview({ open: true, url, title, isObjectUrl: false })
   }
   function closePreview() {
+    try {
+      if (preview?.isObjectUrl && preview?.url) {
+        URL.revokeObjectURL(preview.url)
+      }
+    } catch {}
     setPreview({ open: false, url: '', title: '' })
   }
   function isImage(u) {
@@ -88,6 +107,9 @@ export default function HomeDocuments() {
     <Stack spacing={2}>
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Typography variant="h6" gutterBottom>Add Document (by URL)</Typography>
+        <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
+          <Button variant="contained" onClick={() => setUploadOpen(true)}>Upload Document</Button>
+        </Stack>
         <Stack component="form" spacing={2} onSubmit={addDoc}>
           <TextField label="Title" required value={title} onChange={(e) => setTitle(e.target.value)} />
           <TextField label="URL" required value={url} onChange={(e) => setUrl(e.target.value)} />
@@ -198,6 +220,14 @@ export default function HomeDocuments() {
           )}
         </DialogContent>
       </Dialog>
+      <UploadDocumentDialog
+        open={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+        homeId={id}
+        trades={home?.trades || home?.bids || []}
+        defaultPinnedType="home"
+        onCompleted={(updatedHome) => setHome(updatedHome)}
+      />
     </Stack>
   )
 }

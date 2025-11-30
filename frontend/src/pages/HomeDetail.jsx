@@ -30,6 +30,7 @@ import AddTaskIcon from '@mui/icons-material/AddTask'
 import FactCheckIcon from '@mui/icons-material/FactCheck'
 import AddPhotoAlternateIcon from '@mui/icons-material/AddPhotoAlternate'
 import SendIcon from '@mui/icons-material/Send'
+import UploadDocumentDialog from '../components/UploadDocumentDialog.jsx'
 
 const ALL_PHASES = ['preconstruction', 'exterior', 'interior']
 
@@ -112,6 +113,7 @@ export default function HomeDetail() {
   const [taskMessages, setTaskMessages] = useState([])
   const [taskMsgText, setTaskMsgText] = useState('')
   const [taskMsgFiles, setTaskMsgFiles] = useState([])
+  const [taskUploadOpen, setTaskUploadOpen] = useState(false)
 
   function openTask(bidId, task) {
     setTaskModal({ open: true, bidId, task })
@@ -156,25 +158,7 @@ export default function HomeDetail() {
     }
   }
 
-  async function uploadDocumentForTask() {
-    if (!uploadFile) return
-    try {
-      const uploaded = await api.uploadTaskFile(id, taskModal.task._id, uploadFile, uploadTitle || uploadFile.name)
-      const fileUrl = uploaded?.data?.fileUrl || uploaded?.fileUrl || ''
-      const fileName = uploaded?.data?.fileName || uploaded?.fileName || (uploadTitle || uploadFile.name)
-      if (!fileUrl) throw new Error('Upload succeeded but file URL missing')
-      const resDoc = await api.addDocument(id, {
-        title: fileName,
-        url: fileUrl,
-        pinnedTo: { type: 'task', id: taskModal.task._id }
-      })
-      setHome(resDoc.home)
-      setUploadFile(null)
-      setUploadTitle('')
-    } catch (e) {
-      setError(e.message)
-    }
-  }
+  // Upload handled by shared dialog
 
   async function presignMessageUpload(file) {
     const presign = await api.presignUpload({ contentType: file.type || 'application/octet-stream', keyPrefix: `homes/${id}/messages/` })
@@ -368,9 +352,7 @@ export default function HomeDetail() {
             </Stack>
             <Button variant="outlined" onClick={createTaskSchedule}>Add Schedule</Button>
             <Typography variant="subtitle2">Upload Document/Photo</Typography>
-            <TextField label="Document Title" value={uploadTitle} onChange={(e) => setUploadTitle(e.target.value)} fullWidth />
-            <input type="file" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} />
-            <Button variant="contained" onClick={uploadDocumentForTask} disabled={!uploadFile}>Upload</Button>
+            <Button variant="contained" onClick={() => setTaskUploadOpen(true)}>Upload Document</Button>
             <Divider />
             <Typography variant="subtitle2">Messages</Typography>
             <List dense disablePadding>
@@ -410,6 +392,15 @@ export default function HomeDetail() {
           <Button onClick={saveTaskDetails} variant="contained">Save</Button>
         </DialogActions>
       </Dialog>
+      <UploadDocumentDialog
+        open={taskUploadOpen}
+        onClose={() => setTaskUploadOpen(false)}
+        homeId={id}
+        trades={home?.trades || []}
+        defaultPinnedType="task"
+        defaultTaskId={taskModal.task?._id || ''}
+        onCompleted={(updatedHome) => setHome(updatedHome)}
+      />
 
       {/* Add Task/Quality Check Dialog */}
       <Dialog open={addDialog.open} onClose={() => setAddDialog((d) => ({ ...d, open: false }))} fullWidth maxWidth="sm">
