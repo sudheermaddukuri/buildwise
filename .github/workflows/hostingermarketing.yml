@@ -33,9 +33,9 @@ jobs:
       - name: Deploy to FTP Server
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          local-dir: ./backend/public/marketing/
-          server-dir: ${{ secrets.FTP_SERVER_DIR || '/domains/loopway.in/public_html/buildwise/' }}
+          server: ftp://82.180.152.245
+          username: u160555473.buildwise
+          password: Buildwise@09
+          local-dir: ./marketing/build/
+          server-dir: /domains/loopway.in/public_html/buildwise/
           dangerous-clean-slate: true
