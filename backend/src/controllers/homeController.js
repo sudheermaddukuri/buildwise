@@ -258,6 +258,7 @@ const documentCreateSchema = Joi.object({
   title: Joi.string().required(),
   url: Joi.string().uri().required(),
   s3Key: Joi.string().allow('').optional(),
+  category: Joi.string().valid('contract', 'bid', 'invoice', 'picture', 'other').optional(),
   pinnedTo: Joi.object({
     type: Joi.string().valid('home', 'trade', 'task').default('home'),
     id: Joi.string().allow('').optional(),

@@ -34,6 +34,7 @@ import EditIcon from '@mui/icons-material/Edit'
 import AddIcon from '@mui/icons-material/Add'
 import Tooltip from '@mui/material/Tooltip'
 import BidCompareDialog from '../components/BidCompareDialog.jsx'
+import DeleteIcon from '@mui/icons-material/Delete'
 
 export default function HomeBidDetail() {
   const { id, bidId } = useParams()
@@ -58,6 +59,7 @@ export default function HomeBidDetail() {
   const [aiPrompt, setAiPrompt] = useState('Summarize the key risks, assumptions, scope gaps, and any missing information across these trade documents. Highlight potential cost or schedule impacts and suggest follow-ups.')
   const [aiLoading, setAiLoading] = useState(false)
   const [aiResult, setAiResult] = useState('')
+  const [aiSelectedUrls, setAiSelectedUrls] = useState([])
   // Task modal state (same format as Progress by phase pages)
   const [taskModal, setTaskModal] = useState({ open: false, bidId: '', task: null })
   const [taskEdit, setTaskEdit] = useState({ title: '', description: '' })
@@ -133,6 +135,7 @@ export default function HomeBidDetail() {
     return (home?.schedules || []).filter((s) => s.bidId === bidId && s.startsAt && new Date(s.startsAt).getTime() > now)
   }, [home, bidId])
   const [workTab, setWorkTab] = useState(0) // 0=Tasks,1=Quality
+  const [docTab, setDocTab] = useState(0) // 0=All,1=Contracts,2=Bids,3=Invoices,4=Pictures
   const [finTab, setFinTab] = useState(0) // 0=Pricing,1=Invoices
   const [infoTab, setInfoTab] = useState(0) // 0=Schedules,1=Contracts,2=Messages
   const [addDialog, setAddDialog] = useState({ open: false, mode: 'task', bidId, title: '', desc: '', phaseKey: 'preconstruction' })
@@ -315,6 +318,18 @@ export default function HomeBidDetail() {
     setPreview({ open: false, url: '', title: '' })
   }
 
+  // Initialize AI selection when dialog opens
+  useEffect(() => {
+    if (aiOpen) {
+      const all = (bidPdfDocs || []).map((d) => d.url).filter(Boolean)
+      setAiSelectedUrls(all)
+    }
+  }, [aiOpen, bidPdfDocs])
+
+  function toggleAiUrl(u) {
+    setAiSelectedUrls((arr) => (arr.includes(u) ? arr.filter((x) => x !== u) : [...arr, u]))
+  }
+
   async function presignedUpload(file) {
     const presign = await api.presignUpload({ contentType: file.type || 'application/octet-stream', keyPrefix: `homes/${id}/messages/` })
     const form = new FormData()
@@ -426,7 +441,6 @@ export default function HomeBidDetail() {
           <Tabs value={workTab} onChange={(_, v) => setWorkTab(v)} aria-label="work tabs">
             <Tab label="Tasks" />
             <Tab label="Quality Checks" />
-            <Tab label="Contracts" />
           </Tabs>
         </Stack>
         <Divider sx={{ my: 1 }} />
@@ -502,35 +516,88 @@ export default function HomeBidDetail() {
               {!qualityChecks.length && <Typography variant="body2" color="text.secondary">No quality checks</Typography>}
             </List>
           </Box>
-        ) : (
-          <Box>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center" justifyContent="space-between">
-              <Typography variant="subtitle2">Contracts / Documents</Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Button variant="outlined" onClick={() => setCompareOpen(true)}>Compare Bids</Button>
-                <Button variant="outlined" onClick={() => { setAiResult(''); setAiOpen(true) }}>Analyze with AI</Button>
-                <Button variant="contained" onClick={() => setDocDialogOpen(true)}>Upload</Button>
-              </Box>
-            </Stack>
-            <List dense disablePadding sx={{ mt: 2 }}>
-              {bidDocs.map((d, idx) => (
-                <div key={d._id || `${idx}`}>
-                  <ListItem>
-                    <ListItemText
-                      primary={
-                        <a href={d.url} onClick={(e) => { e.preventDefault(); openPreview(d.url, d.title) }}>
-                          {d.title}
-                        </a>
-                      }
-                    />
-                  </ListItem>
-                  {idx < bidDocs.length - 1 && <Divider component="li" />}
-                </div>
-              ))}
-              {!bidDocs.length && <Typography variant="body2" color="text.secondary">No trade documents</Typography>}
-            </List>
+        ) : null}
+      </Paper>
+
+      {/* Documents section for this Trade */}
+      <Paper variant="outlined" sx={{ p: 2 }}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center" justifyContent="space-between">
+          <Typography variant="subtitle1">Documents</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Button variant="outlined" onClick={() => setCompareOpen(true)}>Compare Bids</Button>
+            <Button variant="outlined" onClick={() => { setAiResult(''); setAiOpen(true) }}>Analyze with AI</Button>
+            <Button variant="contained" onClick={() => setDocDialogOpen(true)}>Upload</Button>
           </Box>
-        )}
+        </Stack>
+        <Tabs
+          value={docTab}
+          onChange={(_, v) => setDocTab(v)}
+          aria-label="document tabs"
+          sx={{ mt: 1 }}
+        >
+          <Tab label="All" />
+          <Tab label="Contracts" />
+          <Tab label="Bids" />
+          <Tab label="Invoices" />
+          <Tab label="Pictures" />
+        </Tabs>
+        <Divider sx={{ my: 1 }} />
+        <List dense disablePadding sx={{ mt: 1 }}>
+          {bidDocs
+            .filter((d) => {
+              const cat = (d.category || '').toLowerCase()
+              if (docTab === 0) return true
+              if (docTab === 1) return cat === 'contract'
+              if (docTab === 2) return cat === 'bid'
+              if (docTab === 3) return cat === 'invoice'
+              if (docTab === 4) return cat === 'picture' || /\.(png|jpg|jpeg|webp|gif)$/i.test(d.url || '')
+              return true
+            })
+            .map((d, idx, arr) => (
+              <div key={d._id || `${idx}`}>
+                <ListItem
+                  secondaryAction={
+                    d?.pinnedTo?.type === 'trade' && d?._id ? (
+                      <Tooltip title="Delete file">
+                        <IconButton
+                          edge="end"
+                          size="small"
+                          onClick={async () => {
+                            try {
+                              if (!confirm('Delete this file from the project?')) return
+                              const res = await api.deleteDocument(id, d._id)
+                              setHome(res.home)
+                            } catch (e) {
+                              setError(e.message)
+                            }
+                          }}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    ) : null
+                  }
+                >
+                  <ListItemText
+                    primary={
+                      <a href={d.url} onClick={(e) => { e.preventDefault(); openPreview(d.url, d.title) }}>
+                        {d.title}
+                      </a>
+                    }
+                    secondary={
+                      <span>
+                        {[d.fileName || (function () { try { const u = new URL(d.url || ''); const last = decodeURIComponent((u.pathname || '').split('/').pop() || ''); return last } catch { return '' } })(), d.createdAt ? `Uploaded: ${new Date(d.createdAt).toLocaleString()}` : ''].filter(Boolean).join(' • ')}
+                      </span>
+                    }
+                  />
+                </ListItem>
+                {idx < (arr.length - 1) && <Divider component="li" />}
+              </div>
+            ))}
+          {(!bidDocs || !bidDocs.length) && (
+            <Typography variant="body2" color="text.secondary">No trade documents</Typography>
+          )}
+        </List>
       </Paper>
 
       <Paper variant="outlined" sx={{ p: 2 }}>
@@ -875,7 +942,7 @@ export default function HomeBidDetail() {
         <DialogContent dividers>
           <Stack spacing={2}>
             <Typography variant="body2" color="text.secondary">
-              {`Analyzing ${bidDocs.length} document${bidDocs.length === 1 ? '' : 's'}. Adjust the prompt below if needed:`}
+              {`Select which documents to include (${aiSelectedUrls.length} selected of ${bidPdfDocs.length}). Adjust the prompt below if needed:`}
             </Typography>
             <TextField
               label="Analysis prompt"
@@ -885,13 +952,24 @@ export default function HomeBidDetail() {
               onChange={(e) => setAiPrompt(e.target.value)}
               fullWidth
             />
-            <Box sx={{ maxHeight: 160, overflow: 'auto', border: '1px solid', borderColor: 'divider', p: 1, borderRadius: 1 }}>
-              {bidDocs.map((d, idx) => (
-                <Typography key={d._id || idx} variant="caption" display="block" noWrap title={d.title}>
-                  • {d.title || d.url}
-                </Typography>
-              ))}
-              {!bidDocs.length && <Typography variant="caption" color="text.secondary">No documents attached to this trade.</Typography>}
+            <Box sx={{ maxHeight: 200, overflow: 'auto', border: '1px solid', borderColor: 'divider', p: 1, borderRadius: 1 }}>
+              {bidPdfDocs.map((d, idx) => {
+                const u = d.url
+                const checked = aiSelectedUrls.includes(u)
+                return (
+                  <Stack key={d._id || idx} direction="row" spacing={1} alignItems="center">
+                    <Checkbox
+                      size="small"
+                      checked={checked}
+                      onChange={() => toggleAiUrl(u)}
+                    />
+                    <Typography variant="caption" display="block" noWrap title={d.title || u}>
+                      {d.title || u}
+                    </Typography>
+                  </Stack>
+                )
+              })}
+              {!bidPdfDocs.length && <Typography variant="caption" color="text.secondary">No documents attached to this trade.</Typography>}
             </Box>
             {aiResult ? (
               <Box sx={{ border: '1px solid', borderColor: 'divider', p: 1 }}>
@@ -905,13 +983,13 @@ export default function HomeBidDetail() {
           <Button onClick={() => setAiOpen(false)} disabled={aiLoading}>Close</Button>
           <Button
             variant="contained"
-            disabled={aiLoading || bidDocs.length === 0 || !aiPrompt.trim()}
+            disabled={aiLoading || aiSelectedUrls.length === 0}
             onClick={async () => {
               setAiLoading(true)
               setAiResult('')
               try {
-                const urls = (bidDocs.map((d) => d.url).filter(Boolean))
-                const resp = await api.analyzeDocuments({ urls, prompt: aiPrompt })
+                const urls = aiSelectedUrls
+                const resp = await api.analyzeTrade({ homeId: id, tradeId: bidId, urls, prompt: aiPrompt })
                 setAiResult(resp.result || JSON.stringify(resp, null, 2))
               } catch (e) {
                 setAiResult(`Error: ${e.message}`)

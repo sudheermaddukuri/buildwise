@@ -33,7 +33,8 @@ export default function HomeDocuments() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [home, setHome] = useState(null)
-  const [filter, setFilter] = useState('all')
+  const [filter, setFilter] = useState('all') // legacy filter
+  const [tab, setTab] = useState('all') // all | contract | bid | invoice | picture
   const [preview, setPreview] = useState({ open: false, url: '', title: '' })
   const [uploadOpen, setUploadOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -45,6 +46,15 @@ export default function HomeDocuments() {
   const docs = useMemo(() => {
     if (!home?.documents) return []
     let items = home.documents
+    // Category tabs
+    if (tab !== 'all') {
+      if (tab === 'picture') {
+        items = items.filter((d) => d.category === 'picture' || /\.(png|jpg|jpeg|webp|gif)$/i.test(d.url || ''))
+      } else {
+        items = items.filter((d) => (d.category || 'other') === tab)
+      }
+    }
+    // Legacy dropdown filter still applies within tab
     if (filter === 'pdf') {
       items = items.filter((d) => (d.url || '').toLowerCase().endsWith('.pdf'))
     } else if (filter === 'photos') {
@@ -120,11 +130,19 @@ export default function HomeDocuments() {
         }
       />
       <Paper variant="outlined" sx={{ p: 2 }}>
+        <Box sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+          <Button size="small" variant={tab === 'all' ? 'contained' : 'outlined'} onClick={() => setTab('all')}>All</Button>
+          <Button size="small" variant={tab === 'contract' ? 'contained' : 'outlined'} onClick={() => setTab('contract')}>Contracts</Button>
+          <Button size="small" variant={tab === 'bid' ? 'contained' : 'outlined'} onClick={() => setTab('bid')}>Bids</Button>
+          <Button size="small" variant={tab === 'invoice' ? 'contained' : 'outlined'} onClick={() => setTab('invoice')}>Invoices</Button>
+          <Button size="small" variant={tab === 'picture' ? 'contained' : 'outlined'} onClick={() => setTab('picture')}>Pictures</Button>
+        </Box>
         <Table size="small">
           <TableHead>
             <TableRow>
               <TableCell>File Name</TableCell>
               <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Title</TableCell>
+              <TableCell>Type</TableCell>
               <TableCell>Pinned To</TableCell>
               <TableCell>Uploaded By</TableCell>
               <TableCell>Uploaded At</TableCell>
@@ -144,6 +162,7 @@ export default function HomeDocuments() {
                   <TableCell sx={{ display: { xs: 'none', md: 'table-cell' }, wordBreak: 'break-all' }}>
                     {d.title && d.title !== name ? d.title : '—'}
                   </TableCell>
+                  <TableCell>{d.category || (/\.(png|jpg|jpeg|webp|gif)$/i.test(d.url || '') ? 'picture' : 'other')}</TableCell>
                   <TableCell>{d.pinnedTo?.type || 'home'}</TableCell>
                   <TableCell>{uploadedBy || '—'}</TableCell>
                   <TableCell>{uploadedAt || '—'}</TableCell>

@@ -223,6 +223,11 @@ export const api = {
   // AI analyze: upload files (by URL) and let OpenAI read them directly (supports PDFs with diagrams)
   analyzeDocuments: ({ urls, prompt }) =>
     apiRequest('/ai/analyze-files', { method: 'POST', body: JSON.stringify({ urls, prompt }) }),
+  analyzeTrade: ({ homeId, tradeId, taskId, urls, prompt }) =>
+    apiRequest('/ai/analyze-trade', {
+      method: 'POST',
+      body: JSON.stringify({ homeId, tradeId, taskId, urls, prompt })
+    }),
   // Bid comparison for a trade
   compareTradeBids: (homeId, bidId, { urls, extraContext }) =>
     apiRequest(`/homes/${homeId}/trades/${bidId}/compare-bids`, {

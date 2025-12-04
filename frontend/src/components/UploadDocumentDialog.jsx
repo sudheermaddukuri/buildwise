@@ -44,6 +44,7 @@ export default function UploadDocumentDialog({
   const [file, setFile] = useState(null)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [docType, setDocType] = useState('other') // contract | bid | invoice | picture | other
 
   useEffect(() => {
     if (open) {
@@ -54,6 +55,7 @@ export default function UploadDocumentDialog({
       setFile(null)
       setError('')
       setSubmitting(false)
+      setDocType('other')
     }
   }, [open, defaultPinnedType, defaultTradeId, defaultTaskId])
 
@@ -92,6 +94,7 @@ export default function UploadDocumentDialog({
       const resDoc = await api.addDocument(homeId, {
         title: fileName,
         url: fileUrl,
+        category: docType,
         pinnedTo
       })
       if (onCompleted) onCompleted(resDoc.home)
@@ -108,6 +111,21 @@ export default function UploadDocumentDialog({
       <DialogTitle>Upload Document</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={2} sx={{ mt: 1 }}>
+          <FormControl fullWidth>
+            <InputLabel id="doc-type">Document Type</InputLabel>
+            <Select
+              labelId="doc-type"
+              label="Document Type"
+              value={docType}
+              onChange={(e) => setDocType(e.target.value)}
+            >
+              <MenuItem value="contract">Contract</MenuItem>
+              <MenuItem value="bid">Bid</MenuItem>
+              <MenuItem value="invoice">Invoice</MenuItem>
+              <MenuItem value="picture">Picture</MenuItem>
+              <MenuItem value="other">Other</MenuItem>
+            </Select>
+          </FormControl>
           {!lockDefaults && (
             <FormControl fullWidth>
               <InputLabel id="pin-type">Pin To</InputLabel>
