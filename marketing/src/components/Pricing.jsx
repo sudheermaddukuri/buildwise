@@ -8,26 +8,39 @@ export default function Pricing() {
       name: 'Guide',
       subtitle: 'Essential tools',
       features: ['Task guidance for all phases', 'Self quality‑checks', 'Checklists and templates', 'Email support'],
-      cta: 'Get quote',
-      priceDisplay: '$99/month/home',
-      chipLabel: 'Per home • monthly'
+      cta: 'Contact for pricing',
+      priceDisplay: 'Contact for pricing',
+      chipLabel: 'Tailored • per home'
     },
     {
       name: 'AI Assurance',
       subtitle: 'Plan + bid analysis',
       features: ['AI plan & drawing analysis', 'Bid & contract checks', 'Bid comparison across vendors', 'Variance & omission flags', 'Priority support'],
-      cta: 'Request proposal',
+      cta: 'Contact for pricing',
       featured: true,
-      priceDisplay: '$299/month/home',
-      chipLabel: 'Per home • monthly'
+      priceDisplay: 'Contact for pricing',
+      chipLabel: 'Tailored • per home'
     },
     {
       name: 'Concierge',
       subtitle: 'Pro coordinator',
       features: ['Dedicated builder coordinator', 'End‑to‑end build support', 'Optional onsite support', 'Executive reporting'],
-      cta: 'Talk to sales',
-      priceDisplay: 'Talk to sales',
+      cta: 'Contact for pricing',
+      priceDisplay: 'Contact for pricing',
       chipLabel: 'Per home • custom'
+    },
+    {
+      name: 'Part‑time Onsite',
+      subtitle: 'Up to 10 hours onsite support',
+      features: [
+        'Onsite coordinator (up to 10 hours)',
+        'Schedule coverage at key checkpoints',
+        'Travel within service area',
+        'Extendable hours on request'
+      ],
+      cta: 'Contact for pricing',
+      priceDisplay: 'Contact for pricing',
+      chipLabel: 'Add‑on • onsite'
     },
     {
       name: 'Local Subcontractors',
@@ -70,7 +83,7 @@ export default function Pricing() {
     <Box id="pricing" sx={{ py: 8 }}>
       <Container maxWidth="lg">
         <Typography variant="h4" sx={{ fontWeight: 800 }}>Pricing</Typography>
-        <Typography color="text.secondary">Pricing is per home. Choose monthly or per‑project to match your workflow.</Typography>
+        <Typography color="text.secondary">Contact us for pricing. Plans are tailored per home; add onsite or packages as needed.</Typography>
         <Grid container spacing={2} sx={{ mt: 1 }}>
           {tiers.map((t) => (
             <Grid item xs={12} md={4} key={t.name}>

@@ -6,7 +6,7 @@ export default function PricingPage() {
 	const plans = [
 		{
 			name: 'Guide',
-			price: '$99 / month / home',
+			price: 'Contact for pricing',
 			tagline: 'Essentials to run your own build',
 			features: [
 				'Phase‑by‑phase tasks & checklists',
@@ -14,11 +14,17 @@ export default function PricingPage() {
 				'Document templates & logs',
 				'Email support'
 			],
-			cta: 'Start with Guide'
+			details: [
+				'Trade playbooks help prevent scope gaps across electrical, plumbing, HVAC and more—aligned to how builders orchestrate work.',
+				'Quality gates explain what to verify and when (e.g., waterproofing before tile) to avoid rework and change orders.',
+				'Templates cover RFIs, submittals, and punchlists so designer → field handoff is clear and traceable.',
+				'Best for owners who want structured tools and guidance while self‑managing subs and schedule.'
+			],
+			cta: 'Contact for pricing'
 		},
 		{
 			name: 'AI Assurance',
-			price: '$299 / month / home',
+			price: 'Contact for pricing',
 			tagline: 'AI plan + bid analysis',
 			features: [
 				'AI plan & drawing analysis',
@@ -28,11 +34,17 @@ export default function PricingPage() {
 				'Priority support'
 			],
 			featured: true,
-			cta: 'Start with AI Assurance'
+			details: [
+				'Uploads are read and normalized to highlight what each bid includes/excludes—no more apples vs oranges.',
+				'Follow‑up questions are generated when critical specs are missing (e.g., cabinet species, finish system, hardware).',
+				'Plan checks surface conflicts between sheets and trades to reduce field surprises.',
+				'Best for owners who want rigorous document/bid review before awarding work.'
+			],
+			cta: 'Contact for pricing'
 		},
 		{
 			name: 'Concierge',
-			price: 'Custom',
+			price: 'Contact for pricing',
 			tagline: 'Dedicated coordinator / onsite',
 			features: [
 				'Dedicated builder coordinator',
@@ -40,7 +52,31 @@ export default function PricingPage() {
 				'Onsite support (optional)',
 				'Executive reporting'
 			],
-			cta: 'Talk to sales'
+			details: [
+				'We act as your builder‑side partner: coordinating trades, sequencing, and closing gaps between design and field.',
+				'Hands‑on phone and personal support when decisions or issues arise; we translate builder language into clear actions.',
+				'We prepare inspectors/HOA submissions and help you navigate approvals and re‑inspections.',
+				'Best when you want a human safety‑net guiding calls, scheduling, and vendor accountability.'
+			],
+			cta: 'Contact for pricing'
+		},
+		{
+			name: 'Part‑time Onsite',
+			price: 'Contact for pricing',
+			tagline: 'Up to 10 hours onsite support',
+			features: [
+				'Onsite coordinator (up to 10 hours)',
+				'Coverage at key checkpoints',
+				'Travel within service area',
+				'Extendable hours on request'
+			],
+			details: [
+				'Use for critical milestones (framing QA, MEP rough‑in walk, envelope/waterproofing checks, finals & closeout).',
+				'We align designer intent with field execution: catch issues early and avoid downstream change orders.',
+				'Includes phone support around the visit to prepare scope, checklist, and follow‑ups with trades.',
+				'Ideal add‑on when you want expert eyes onsite without a full‑time coordinator.'
+			],
+			cta: 'Contact for pricing'
 		}
 	];
 
@@ -48,17 +84,29 @@ export default function PricingPage() {
 		{
 			name: 'Local Subcontractors',
 			desc: 'Access to vetted local trades with performance references and faster bid cycles.',
-			bullets: ['Vetted subs across major trades', 'RFI + bid support', 'Fair, comparable bids']
+			bullets: ['Vetted subs across major trades', 'RFI + bid support', 'Fair, comparable bids'],
+			details: [
+				'We curate shortlists matched to your scope and budget to reduce re‑bid cycles.',
+				'Lightweight qualification—references and recent performance—so you award with confidence.'
+			]
 		},
 		{
 			name: 'Builder Discounts Access',
 			desc: 'Pro pricing at tile, roofing, countertops, cabinets, paint, lumber & more.',
-			bullets: ['Supplier introductions', 'SKU & selection guidance', 'Lead‑time planning']
+			bullets: ['Supplier introductions', 'SKU & selection guidance', 'Lead‑time planning'],
+			details: [
+				'Leverage our builder registrations for negotiated pricing at major suppliers.',
+				'We guide selections to avoid backorders and integrate lead times into your schedule.'
+			]
 		},
 		{
 			name: 'Designer & Architect Access',
 			desc: 'Curated partners for concept, specs, and permit‑ready packages.',
-			bullets: ['Interior design partners', 'Architectural partners', 'Value engineering support']
+			bullets: ['Interior design partners', 'Architectural partners', 'Value engineering support'],
+			details: [
+				'We bridge the designer → field gap so specs are buildable and coordinated across trades.',
+				'Partners collaborate on value‑engineering without compromising design intent.'
+			]
 		}
 	];
 
@@ -66,9 +114,7 @@ export default function PricingPage() {
 		<Box sx={{ py: 8 }}>
 			<Container maxWidth="lg">
 				<Typography variant="h3" sx={{ fontWeight: 800, mb: 1 }}>Pricing & Plans</Typography>
-				<Typography color="text.secondary" sx={{ mb: 4 }}>
-					Choose a subscription that matches your project’s complexity. Add packages any time.
-				</Typography>
+				<Typography color="text.secondary" sx={{ mb: 4 }}>Contact us for pricing. Plans are tailored per project; add onsite and packages as needed.</Typography>
 				<Grid container spacing={2} sx={{ mb: 4 }}>
 					{plans.map((p) => (
 						<Grid item xs={12} md={4} key={p.name}>
@@ -89,6 +135,17 @@ export default function PricingPage() {
 											</Stack>
 										))}
 									</Stack>
+									{Array.isArray(p.details) && p.details.length ? (
+										<>
+											<Divider sx={{ borderColor: '#1f2942', my: 1 }} />
+											<Typography variant="subtitle2" sx={{ mb: .5 }}>Why this matters</Typography>
+											<Stack spacing={0.5}>
+												{p.details.map((d) => (
+													<Typography key={d} color="text.secondary">• {d}</Typography>
+												))}
+											</Stack>
+										</>
+									) : null}
 								</CardContent>
 								<CardContent>
 									<Button
@@ -127,6 +184,17 @@ export default function PricingPage() {
 											</Stack>
 										))}
 									</Stack>
+									{Array.isArray(a.details) && a.details.length ? (
+										<>
+											<Divider sx={{ borderColor: '#1f2942', my: 1 }} />
+											<Typography variant="subtitle2" sx={{ mb: .5 }}>Details</Typography>
+											<Stack spacing={0.5}>
+												{a.details.map((d) => (
+													<Typography key={d} color="text.secondary">• {d}</Typography>
+												))}
+											</Stack>
+										</>
+									) : null}
 								</CardContent>
 								<CardContent>
 									<Button
