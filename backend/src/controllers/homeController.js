@@ -188,12 +188,18 @@ async function addBid(req, res) {
   return res.status(201).json({ home, bid });
 }
 
+const dependencyRefSchema = Joi.object({
+  tradeId: Joi.string().required(),
+  taskId: Joi.string().required(),
+});
+
 const taskCreateSchema = Joi.object({
   title: Joi.string().required(),
   description: Joi.string().allow('').optional(),
   phaseKey: Joi.string().valid(...PhaseKeyEnum).optional(),
   dueDate: Joi.date().optional(),
   assignee: Joi.string().allow('').optional(),
+  dependsOn: Joi.array().items(dependencyRefSchema).optional(),
 });
 
 async function addTaskToBid(req, res) {
@@ -210,6 +216,7 @@ async function addTaskToBid(req, res) {
     status: 'todo',
     dueDate: value.dueDate || null,
     assignee: value.assignee || '',
+    dependsOn: Array.isArray(value.dependsOn) ? value.dependsOn : [],
     checklist: [],
     comments: [],
   };
@@ -475,6 +482,7 @@ const taskUpdateSchema = Joi.object({
   title: Joi.string().optional(),
   description: Joi.string().allow('').optional(),
   completedBy: Joi.string().allow('').optional(),
+  dependsOn: Joi.array().items(dependencyRefSchema).optional(),
 });
 
 async function updateTask(req, res) {
@@ -498,6 +506,7 @@ async function updateTask(req, res) {
   }
   if (value.title !== undefined) setObj['trades.$[b].tasks.$[t].title'] = value.title;
   if (value.description !== undefined) setObj['trades.$[b].tasks.$[t].description'] = value.description;
+  if (value.dependsOn !== undefined) setObj['trades.$[b].tasks.$[t].dependsOn'] = Array.isArray(value.dependsOn) ? value.dependsOn : [];
 
   const updated = await Home.findOneAndUpdate(
     { _id: homeId },

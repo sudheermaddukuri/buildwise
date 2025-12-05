@@ -51,6 +51,13 @@ const TaskSchema = new mongoose.Schema(
     completedAt: { type: Date },
     dueDate: { type: Date },
     assignee: { type: String },
+    dependsOn: [
+      {
+        tradeId: { type: String, required: true },
+        taskId: { type: String, required: true },
+        _id: false
+      }
+    ],
     checklist: [
       {
         _id: { type: String, default: uuidv4 },

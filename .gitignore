@@ -26,3 +26,5 @@ public/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+buildwise_server.zip

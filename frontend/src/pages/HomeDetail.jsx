@@ -31,6 +31,10 @@ import FactCheckIcon from '@mui/icons-material/FactCheck'
 import AddPhotoAlternateIcon from '@mui/icons-material/AddPhotoAlternate'
 import SendIcon from '@mui/icons-material/Send'
 import UploadDocumentDialog from '../components/UploadDocumentDialog.jsx'
+import DependencyGraph from '../components/DependencyGraph.jsx'
+import PhaseTimeline from '../components/PhaseTimeline.jsx'
+import Tabs from '@mui/material/Tabs'
+import Tab from '@mui/material/Tab'
 
 const ALL_PHASES = ['preconstruction', 'exterior', 'interior']
 
@@ -114,6 +118,7 @@ export default function HomeDetail() {
   const [taskMsgText, setTaskMsgText] = useState('')
   const [taskMsgFiles, setTaskMsgFiles] = useState([])
   const [taskUploadOpen, setTaskUploadOpen] = useState(false)
+  const [viewTab, setViewTab] = useState(0) // 0=list, 1=interactive
 
   const taskDocs = useMemo(() => {
     const docs = home?.documents || []
@@ -224,6 +229,15 @@ export default function HomeDetail() {
   return (
     <Stack spacing={2}>
       <Paper variant="outlined" sx={{ p: 2 }}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} alignItems="center" justifyContent="space-between">
+          <Typography variant="h6">Phase View</Typography>
+          <Tabs value={viewTab} onChange={(_, v) => setViewTab(v)} aria-label="phase view">
+            <Tab label="List" />
+            <Tab label="Interactive" />
+          </Tabs>
+        </Stack>
+      </Paper>
+      <Paper variant="outlined" sx={{ p: 2 }}>
         <Typography variant="h6" gutterBottom>Total Progress</Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <Box sx={{ flex: 1 }}>
@@ -233,6 +247,7 @@ export default function HomeDetail() {
         </Box>
       </Paper>
 
+      {viewTab === 0 ? (
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Typography variant="h6" gutterBottom>{currentPhase} Trades</Typography>
         {error && <Alert severity="error">{error}</Alert>}
@@ -332,6 +347,36 @@ export default function HomeDetail() {
           </List>
         ) : <Typography variant="body2" color="text.secondary">No trades in this phase</Typography>}
       </Paper>
+      ) : (
+        <>
+          <Paper variant="outlined" sx={{ p: 2 }}>
+            <Typography variant="h6" gutterBottom>Dependency Graph</Typography>
+            <DependencyGraph
+              trades={bidsForPhase}
+              allTrades={home.trades || []}
+              phaseKey={currentPhase}
+              height={380}
+              onNodeClick={(node) => {
+                try {
+                  const trade = (home.trades || []).find((t) => String(t._id) === String(node.group))
+                  const task = trade?.tasks?.find((tk) => String(tk._id) === String(node.id))
+                  if (trade && task) {
+                    openTask(trade._id, task)
+                  }
+                } catch {}
+              }}
+            />
+          </Paper>
+          <Paper variant="outlined" sx={{ p: 2 }}>
+            <Typography variant="h6" gutterBottom>Timeline</Typography>
+            <PhaseTimeline
+              schedules={(home.schedules || []).filter((s) => !s.taskId ? bidsForPhase.some(b => b._id === s.bidId) : true)}
+              tasks={bidsForPhase.flatMap((b) => (b.tasks || []).filter((t) => (t.phaseKey || currentPhase) === currentPhase).map((t) => ({ ...t, bidId: b._id, tradeName: b.name })))}
+              height={260}
+            />
+          </Paper>
+        </>
+      )}
 
       <Dialog open={taskModal.open} onClose={closeTask} fullWidth maxWidth="sm">
         <DialogTitle>Task Details</DialogTitle>

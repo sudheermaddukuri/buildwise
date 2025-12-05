@@ -35,6 +35,10 @@ import AddIcon from '@mui/icons-material/Add'
 import Tooltip from '@mui/material/Tooltip'
 import BidCompareDialog from '../components/BidCompareDialog.jsx'
 import DeleteIcon from '@mui/icons-material/Delete'
+import InputLabel from '@mui/material/InputLabel'
+import Select from '@mui/material/Select'
+import MenuItem from '@mui/material/MenuItem'
+import FormControl from '@mui/material/FormControl'
 
 export default function HomeBidDetail() {
   const { id, bidId } = useParams()
@@ -233,7 +237,7 @@ export default function HomeBidDetail() {
   }
   function openTask(task) {
     setTaskModal({ open: true, bidId, task })
-    setTaskEdit({ title: task.title, description: task.description || '' })
+    setTaskEdit({ title: task.title, description: task.description || '', dependsOn: Array.isArray(task.dependsOn) ? task.dependsOn : [] })
     setSchedForm({ title: '', startsAt: '', endsAt: '' })
     setTaskMsgText('')
     setTaskMsgFiles([])
@@ -244,9 +248,17 @@ export default function HomeBidDetail() {
   }
   async function saveTaskDetails() {
     try {
+      const uniqueDeps = Array.isArray(taskEdit.dependsOn)
+        ? Object.values(taskEdit.dependsOn.reduce((acc, d) => {
+            const k = `${d.tradeId}:${d.taskId}`
+            if (!acc[k]) acc[k] = { tradeId: d.tradeId, taskId: d.taskId }
+            return acc
+          }, {}))
+        : []
       const updated = await api.updateTask(id, bidId, taskModal.task._id, {
         title: taskEdit.title,
-        description: taskEdit.description
+        description: taskEdit.description,
+        dependsOn: uniqueDeps
       })
       setHome(updated)
       closeTask()
@@ -287,6 +299,17 @@ export default function HomeBidDetail() {
       setError(e.message)
     }
   }
+  const allTasksFlat = useMemo(() => {
+    const result = []
+    for (const t of (home?.trades || [])) {
+      for (const tk of (t.tasks || [])) {
+        result.push({ tradeId: t._id, tradeName: t.name, taskId: tk._id, title: tk.title })
+      }
+    }
+    return result
+  }, [home])
+  const dependencyOptions = useMemo(() => allTasksFlat.filter((tk) => tk.taskId !== (taskModal?.task?._id || '')), [allTasksFlat, taskModal?.task?._id])
+
 
   // Upload handled by shared dialog
 
@@ -839,6 +862,37 @@ export default function HomeBidDetail() {
               <TextField label="Ends At" type="datetime-local" InputLabelProps={{ shrink: true }} value={schedForm.endsAt} onChange={(e) => setSchedForm((s) => ({ ...s, endsAt: e.target.value }))} fullWidth />
             </Stack>
             <Button variant="outlined" onClick={createTaskSchedule}>Add Schedule</Button>
+            <Typography variant="subtitle2">Dependencies</Typography>
+            <FormControl fullWidth>
+              <InputLabel id="deps">Depends on</InputLabel>
+              <Select
+                labelId="deps"
+                label="Depends on"
+                multiple
+                renderValue={(selected) => {
+                  const arr = Array.isArray(selected) ? selected : []
+                  if (!arr.length) return 'None'
+                  const labels = []
+                  for (const dep of arr) {
+                    const found = allTasksFlat.find((x) => x.tradeId === dep.tradeId && x.taskId === dep.taskId)
+                    if (found) labels.push(`${found.tradeName} — ${found.title}`)
+                  }
+                  return labels.join(', ')
+                }}
+                value={Array.isArray(taskEdit.dependsOn) ? taskEdit.dependsOn : []}
+                onChange={(e) => {
+                  // e.target.value will be array of objects; ensure shape {tradeId, taskId}
+                  const val = e.target.value
+                  setTaskEdit((te) => ({ ...te, dependsOn: val }))
+                }}
+              >
+                {dependencyOptions.map((opt) => (
+                  <MenuItem key={`${opt.tradeId}:${opt.taskId}`} value={{ tradeId: opt.tradeId, taskId: opt.taskId }}>
+                    {`${opt.tradeName} — ${opt.title}`}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
             <Typography variant="subtitle2">Upload Document/Photo</Typography>
             <Button variant="contained" onClick={() => setTaskUploadOpen(true)}>Upload Document</Button>
             <Divider />
