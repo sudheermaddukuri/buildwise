@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const { v4: uuidv4 } = require('uuid');
 
-const PhaseKeyEnum = ['preconstruction', 'exterior', 'interior'];
+const PhaseKeyEnum = ['planning', 'preconstruction', 'exterior', 'interior'];
 
 const PersonLiteSchema = new mongoose.Schema(
   {
@@ -168,6 +168,16 @@ const ScheduleSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const ParticipantSchema = new mongoose.Schema(
+  {
+    fullName: { type: String, default: '' },
+    email: { type: String, required: true },
+    phone: { type: String, default: '' },
+    role: { type: String, default: '' }, // e.g., partner, builder, coordinator, architect, interior_decorator, advisor
+  },
+  { _id: false }
+);
+
 const HomeSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
@@ -176,6 +186,7 @@ const HomeSchema = new mongoose.Schema(
     client: { type: PersonLiteSchema }, // supersedes clientName when onboarding is used
     monitors: [PersonLiteSchema],
     builder: { type: PersonLiteSchema },
+    participants: [ParticipantSchema],
     phases: [
       {
         key: { type: String, enum: PhaseKeyEnum, required: true },

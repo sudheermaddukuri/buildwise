@@ -151,6 +151,12 @@ export default function SideNavLayout() {
                 Progress by Phase
               </ListSubheader>
               <ListItem disablePadding>
+                <ListItemButton selected={location.pathname.includes('/planning')} onClick={() => go(`/homes/${currentHomeId}/planning`)}>
+                  <ListItemIcon><DesignServicesIcon /></ListItemIcon>
+                  <ListItemText primary="Planning" />
+                </ListItemButton>
+              </ListItem>
+              <ListItem disablePadding>
                 <ListItemButton selected={location.pathname.includes('/preconstruction')} onClick={() => go(`/homes/${currentHomeId}/preconstruction`)}>
                   <ListItemIcon><DesignServicesIcon /></ListItemIcon>
                   <ListItemText primary="PreConstruction" />
@@ -191,9 +197,21 @@ export default function SideNavLayout() {
                 </ListItemButton>
               </ListItem>
               <ListItem disablePadding>
+                <ListItemButton selected={location.pathname.includes('/tools')} onClick={() => go(`/homes/${currentHomeId}/tools`)}>
+                  <ListItemIcon><DesignServicesOutlinedIcon /></ListItemIcon>
+                  <ListItemText primary="Tools" />
+                </ListItemButton>
+              </ListItem>
+              <ListItem disablePadding>
                 <ListItemButton selected={location.pathname.includes('/trades')} onClick={() => go(`/homes/${currentHomeId}/trades`)}>
                   <ListItemIcon><BuildIcon /></ListItemIcon>
                   <ListItemText primary="Trades" />
+                </ListItemButton>
+              </ListItem>
+              <ListItem disablePadding>
+                <ListItemButton selected={location.pathname.includes('/planning')} onClick={() => go(`/homes/${currentHomeId}/planning`)}>
+                  <ListItemIcon><DescriptionIcon /></ListItemIcon>
+                  <ListItemText primary="Planning" />
                 </ListItemButton>
               </ListItem>
               <ListItem disablePadding>

@@ -23,8 +23,8 @@ async function register(req, res) {
     return res.status(409).json({ message: 'User already exists' });
   }
   const passwordHash = await bcrypt.hash(password, 10);
-  // This endpoint now only completes invited monitors; otherwise use registerMarketing
-  if (!existing || !(existing.roles || []).includes('monitor')) {
+  // Allow completing registration for any invited user (pre-created Person without password)
+  if (!existing) {
     return res.status(403).json({ message: 'Registration requires invitation' });
   }
   const person = await Person.findOneAndUpdate(
@@ -145,13 +145,12 @@ async function registerMarketing(req, res) {
       subscription: { status: 'active', planId: planId === 'guide' ? 'guide' : 'ai_assurance', startedAt: new Date(), currentPeriodEnd: trialEnd },
     });
   }
-  // Send confirmation email (log when SMTP not configured)
+  // Send confirmation email via SMTP (fallback to console when not configured)
   const appBase = process.env.APP_PUBLIC_URL || process.env.MARKETING_URL || ''
   const confirmUrl = appBase ? `${appBase.replace(/\/+$/, '')}/confirm-email?token=${confirmToken}&email=${encodeURIComponent(lower)}` : `confirm-email?token=${confirmToken}&email=${encodeURIComponent(lower)}`
   try {
-    // Placeholder: integrate nodemailer/SES here; for now log
-    // eslint-disable-next-line no-console
-    console.log('Confirm email link:', confirmUrl);
+    const mailer = require('../services/mailer');
+    await mailer.sendConfirmEmail({ to: lower, confirmUrl }).catch(() => {})
   } catch (_e) {}
   return res.status(201).json({ message: 'Registered. Please check your email to confirm your account.' });
 }

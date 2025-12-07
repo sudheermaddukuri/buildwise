@@ -29,6 +29,7 @@ export default function BidCompareDialog({
   tradeId,
   existingDocs = [],
   onAfterUpload, // optional: callback(updatedHome) if we persist new docs
+  defaultExtraContext = '',
 }) {
   const [docs, setDocs] = useState([])
   const [selectedUrls, setSelectedUrls] = useState([])
@@ -50,9 +51,9 @@ export default function BidCompareDialog({
       setUploading(false)
       setComparing(false)
       setResult('')
-      setExtraContext('')
+      setExtraContext(defaultExtraContext || '')
     }
-  }, [open, existingDocs])
+  }, [open, existingDocs, defaultExtraContext])
 
   const canCompare = useMemo(() => {
     const total = selectedUrls.length + files.length

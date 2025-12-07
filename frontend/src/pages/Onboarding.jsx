@@ -18,50 +18,55 @@ import Grid from '@mui/material/Grid'
 import Card from '@mui/material/Card'
 import CardActionArea from '@mui/material/CardActionArea'
 import CardContent from '@mui/material/CardContent'
+import Select from '@mui/material/Select'
+import MenuItem from '@mui/material/MenuItem'
+import InputLabel from '@mui/material/InputLabel'
+import IconButton from '@mui/material/IconButton'
+import AddIcon from '@mui/icons-material/Add'
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
+import Dialog from '@mui/material/Dialog'
+import DialogTitle from '@mui/material/DialogTitle'
+import DialogContent from '@mui/material/DialogContent'
+import DialogActions from '@mui/material/DialogActions'
+import CircularProgress from '@mui/material/CircularProgress'
+import Radio from '@mui/material/Radio'
+import RadioGroup from '@mui/material/RadioGroup'
+import FormControlLabel from '@mui/material/FormControlLabel'
 
-const steps = ['Home Details', 'Client & Monitors', 'Builder']
+const steps = ['Home Details', 'Architecture & Template', 'Invites']
 
 export default function Onboarding() {
   const [activeStep, setActiveStep] = useState(0)
   const [error, setError] = useState('')
   const navigate = useNavigate()
 
-  // Client
+  // People (legacy selection, kept for potential autocomplete suggestions)
   const [people, setPeople] = useState([])
-  const [selectedClient, setSelectedClient] = useState(null)
-  const [selectedMonitors, setSelectedMonitors] = useState([])
-
-  // Builder
-  const [builders, setBuilders] = useState([])
-  const [selectedBuilder, setSelectedBuilder] = useState(null)
 
   // Home
   const [home, setHome] = useState({ name: '', address: '', withTemplates: true, templateId: '' })
   const [templates, setTemplates] = useState([])
   const [selectedTemplateKey, setSelectedTemplateKey] = useState('')
   const [selectedVersionId, setSelectedVersionId] = useState('')
+  // Architecture step
+  const [archFile, setArchFile] = useState(null)
+  const [archUpload, setArchUpload] = useState({ url: '', fileName: '' })
+  const [houseType, setHouseType] = useState('')
+  const [roofType, setRoofType] = useState('')
+  const [exteriorType, setExteriorType] = useState('')
+  const [hasArchitecture, setHasArchitecture] = useState('unknown') // 'yes' | 'no' | 'unknown'
+  const [archDialogOpen, setArchDialogOpen] = useState(false)
+  const [archBusy, setArchBusy] = useState(false)
+  const [archError, setArchError] = useState('')
+  // Invites step
+  const [invites, setInvites] = useState([{ email: '', role: 'partner' }])
 
   useEffect(() => {
     api.listPeople().then(setPeople).catch(() => {})
-    api.listPeople('builder').then(setBuilders).catch(() => {})
     api.listTemplates()
       .then((ts) => {
         const list = ts || []
         setTemplates(list)
-        if (list.length) {
-          // Preselect the first templateKey and latest version for convenience
-          const byKey = groupByTemplateKey(list)
-          const firstKey = Object.keys(byKey)[0]
-          if (firstKey) {
-            setSelectedTemplateKey(firstKey)
-            const versions = sortVersionsDesc(byKey[firstKey])
-            const firstVer = versions[0]
-            if (firstVer) {
-              setSelectedVersionId(firstVer._id)
-              setHome((h) => ({ ...h, templateId: firstVer._id }))
-            }
-          }
-        }
       })
       .catch(() => {})
   }, [])
@@ -80,43 +85,135 @@ export default function Onboarding() {
     return [...(items || [])].sort((a, b) => Number(b.version || 0) - Number(a.version || 0))
   }
 
-  const isHomeStepValid = useMemo(() => {
-    return Boolean(home.name && (!home.withTemplates || home.templateId))
-  }, [home])
-
-  const isClientStepValid = useMemo(() => {
-    return Boolean(selectedClient && selectedClient.email)
-  }, [selectedClient])
-
-  const isBuilderStepValid = useMemo(() => {
-    return Boolean(selectedBuilder && selectedBuilder.email)
-  }, [selectedBuilder])
+  const isHomeStepValid = useMemo(() => Boolean(home.name), [home])
+  const isArchStepValid = useMemo(() => Boolean(home.templateId), [home.templateId])
+  const isInvitesStepValid = useMemo(() => {
+    // At least one invite or allow empty
+    return invites.every((i) => !i.email || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(i.email))
+  }, [invites])
 
   function removeMonitor(email) {
     setSelectedMonitors(selectedMonitors.filter((m) => m.email !== email))
   }
 
+  async function uploadArchitectureTemp() {
+    if (!archFile) return { url: '', fileName: '' }
+    const form = new FormData()
+    form.append('title', archFile.name)
+    form.append('file', archFile)
+    form.append('folderName', `homes/onboarding/${Date.now()}`)
+    const res = await fetch(`${import.meta.env.VITE_API_BASE || (import.meta.env.PROD ? '/api' : 'http://localhost:5051/api')}/file-storage/upload`, {
+      method: 'POST',
+      headers: {
+        ...(localStorage.getItem('token') ? { Authorization: `Bearer ${localStorage.getItem('token')}` } : {})
+      },
+      body: form
+    })
+    if (!res.ok) {
+      const txt = await res.text()
+      throw new Error(txt || `Upload failed`)
+    }
+    const data = await res.json()
+    return { url: data?.data?.fileUrl || '', fileName: data?.data?.fileName || archFile.name }
+  }
+
+  function suggestFromFileName(name) {
+    const n = (name || '').toLowerCase()
+    let ht = ''
+    if (n.includes('townhome') || n.includes('town-home')) ht = 'townhome'
+    else if (n.includes('pool')) ht = 'pool'
+    else if (n.includes('hangar') || n.includes('aircraft')) ht = 'airport_hangar'
+    else ht = 'single_family'
+    let rt = ''
+    if (n.includes('metal')) rt = 'metal_roof'
+    else if (n.includes('tile') || n.includes('concrete')) rt = 'concrete_tile'
+    else if (n.includes('flat')) rt = 'flat_roof'
+    else if (n.includes('shingle') || n.includes('asphalt')) rt = 'shingles'
+    const et = n.includes('brick') ? 'brick' : n.includes('stucco') ? 'stucco' : ''
+    return { ht, rt, et }
+  }
+
+  function parseDetection(jsonText) {
+    try {
+      const obj = JSON.parse(jsonText)
+      return {
+        houseType: String(obj.houseType || '').trim(),
+        roofType: String(obj.roofType || '').trim(),
+        exteriorType: String(obj.exteriorType || '').trim(),
+      }
+    } catch {
+      try {
+        // Handle code-fenced JSON blocks like ```json ... ```
+        const raw = String(jsonText || '')
+        const fence = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)
+        const inner = fence ? fence[1] : raw
+        // Fallback: extract the first {...} block
+        let candidate = inner
+        if (!fence) {
+          const start = inner.indexOf('{')
+          const end = inner.lastIndexOf('}')
+          if (start !== -1 && end !== -1 && end > start) {
+            candidate = inner.slice(start, end + 1)
+          }
+        }
+        const obj2 = JSON.parse(candidate)
+        return {
+          houseType: String(obj2.houseType || '').trim(),
+          roofType: String(obj2.roofType || '').trim(),
+          exteriorType: String(obj2.exteriorType || '').trim(),
+        }
+      } catch {
+        return { houseType: '', roofType: '', exteriorType: '' }
+      }
+    }
+  }
+
+  function normalizeRoofType(v) {
+    const s = String(v || '').toLowerCase().replace(/\s+/g, '_')
+    if (!s) return ''
+    if (s.includes('metal')) return 'metal_roof'
+    if (s.includes('tile') || s.includes('concrete')) return 'concrete_tile'
+    if (s.includes('flat')) return 'flat_roof'
+    if (s.includes('shingle') || s.includes('asphalt')) return 'shingles'
+    return 'other'
+  }
+
+  function templateKeyForHouseType(ht) {
+    if (ht === 'townhome') return 'townhome'
+    if (ht === 'pool') return 'pool'
+    if (ht === 'airport_hangar') return 'airport_hangar'
+    return 'single_family'
+  }
+
+  const filteredTemplates = useMemo(() => {
+    const key = templateKeyForHouseType(houseType || '')
+    const byKey = groupByTemplateKey(templates)
+    return byKey[key] || []
+  }, [templates, houseType])
+
   async function handleSubmit() {
     setError('')
     try {
-      const builderPayload = { fullName: selectedBuilder.fullName, email: selectedBuilder.email, phone: selectedBuilder.phone || '' }
-      const payload = {
-        client: {
-          fullName: selectedClient.fullName,
-          email: selectedClient.email,
-          phone: selectedClient.phone || '',
-        },
-        monitors: selectedMonitors.map((m) => ({
-          fullName: m.fullName,
-          email: m.email,
-          phone: m.phone || '',
-        })),
-        builder: builderPayload,
-        home,
+      let arch = archUpload
+      if (archFile && !arch.url) {
+        arch = await uploadArchitectureTemp()
+        setArchUpload(arch)
       }
+      const participants = invites.filter((i) => i.email).map((i) => ({
+        email: i.email,
+        fullName: (people.find((p) => p.email === i.email)?.fullName) || i.email,
+        role: i.role,
+      }))
+      const payload = { participants, home }
       const res = await api.onboardingCreate(payload)
       const created = res.home || res
       if (created && created._id) {
+        // Attach architecture doc if uploaded
+        if (arch.url) {
+          try {
+            await api.addDocument(created._id, { title: arch.fileName || 'Architecture', url: arch.url, category: 'architecture_base', isFinal: true, pinnedTo: { type: 'home' } })
+          } catch {}
+        }
         try { localStorage.setItem('lastHomeId', created._id) } catch {}
         navigate(`/homes/${created._id}`)
       } else {
@@ -129,7 +226,6 @@ export default function Onboarding() {
 
   return (
     <Stack spacing={2}>
-      <Typography variant="h5">Onboard New Home</Typography>
       <Stepper activeStep={activeStep} alternativeLabel>
         {steps.map((label) => (
           <Step key={label}><StepLabel>{label}</StepLabel></Step>
@@ -138,14 +234,75 @@ export default function Onboarding() {
 
       {activeStep === 0 && (
         <Paper variant="outlined" sx={{ p: 2 }}>
-          <Typography variant="h6" gutterBottom>Home Details</Typography>
           <Stack spacing={2}>
             <TextField label="Home Name" required value={home.name} onChange={(e) => setHome({ ...home, name: e.target.value })} />
-            <TextField label="Address" value={home.address} onChange={(e) => setHome({ ...home, address: e.target.value })} />
+            <TextField label="Home Address" value={home.address} onChange={(e) => setHome({ ...home, address: e.target.value })} />
+          </Stack>
+        </Paper>
+      )}
+
+      {activeStep === 1 && (
+        <Paper variant="outlined" sx={{ p: 2 }}>
+          <Stack spacing={2}>
+            <Box>
+              <Typography variant="subtitle1" gutterBottom>Do you have architecture diagrams ready?</Typography>
+              <RadioGroup
+                row
+                value={hasArchitecture}
+                onChange={(e) => {
+                  const v = e.target.value
+                  setHasArchitecture(v)
+                  if (v === 'yes') setArchDialogOpen(true)
+                }}
+              >
+                <FormControlLabel value="yes" control={<Radio />} label="Yes" />
+                <FormControlLabel value="no" control={<Radio />} label="No" />
+              </RadioGroup>
+              {hasArchitecture !== 'yes' && (
+                <Typography variant="body2" color="text.secondary">If you don’t have diagrams yet, select House/Roof/Exterior types below.</Typography>
+              )}
+            </Box>
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={4}>
+                <FormControl fullWidth>
+                  <InputLabel id="house-type">House Type</InputLabel>
+                  <Select labelId="house-type" label="House Type" value={houseType} onChange={(e) => setHouseType(e.target.value)}>
+                    <MenuItem value="single_family">Single Family</MenuItem>
+                    <MenuItem value="townhome">Townhome</MenuItem>
+                    <MenuItem value="pool">Pool</MenuItem>
+                    <MenuItem value="airport_hangar">Airport Hangar</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <FormControl fullWidth>
+                  <InputLabel id="roof-type">Roof Type</InputLabel>
+                  <Select labelId="roof-type" label="Roof Type" value={roofType} onChange={(e) => setRoofType(e.target.value)}>
+                    <MenuItem value="shingles">Shingles</MenuItem>
+                    <MenuItem value="concrete_tile">Concrete Tile</MenuItem>
+                    <MenuItem value="flat_roof">Flat Roof</MenuItem>
+                    <MenuItem value="metal_roof">Metal Roof</MenuItem>
+                    <MenuItem value="other">Other</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <FormControl fullWidth>
+                  <InputLabel id="exterior-type">Exterior Type</InputLabel>
+                  <Select labelId="exterior-type" label="Exterior Type" value={exteriorType} onChange={(e) => setExteriorType(e.target.value)}>
+                    <MenuItem value="brick">Brick</MenuItem>
+                    <MenuItem value="stucco">Stucco</MenuItem>
+                    <MenuItem value="siding">Siding</MenuItem>
+                    <MenuItem value="other">Other</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+            </Grid>
+
             <Box>
               <Typography variant="subtitle1" gutterBottom>Select Template</Typography>
               <Grid container spacing={2}>
-                {Object.entries(groupByTemplateKey(templates)).map(([key, items]) => {
+                {Object.entries(groupByTemplateKey(filteredTemplates.length ? filteredTemplates : templates)).map(([key, items]) => {
                   const latest = sortVersionsDesc(items)[0]
                   return (
                     <Grid item xs={12} sm={6} md={4} key={key}>
@@ -177,7 +334,7 @@ export default function Onboarding() {
               <Box>
                 <Typography variant="subtitle1" gutterBottom>Select Version</Typography>
                 <Grid container spacing={2}>
-                  {sortVersionsDesc(groupByTemplateKey(templates)[selectedTemplateKey] || []).map((v) => (
+                  {sortVersionsDesc((groupByTemplateKey(templates)[selectedTemplateKey] || [])).map((v) => (
                     <Grid item xs={12} sm={6} md={4} key={v._id}>
                       <Card variant={selectedVersionId === v._id ? 'outlined' : 'elevation'} sx={{ borderColor: selectedVersionId === v._id ? 'primary.main' : undefined }}>
                         <CardActionArea onClick={() => {
@@ -202,38 +359,101 @@ export default function Onboarding() {
         </Paper>
       )}
 
-      {activeStep === 1 && (
-        <Paper variant="outlined" sx={{ p: 2 }}>
-          <Typography variant="h6" gutterBottom>Client & Monitors</Typography>
-          <Stack spacing={2}>
-            <Autocomplete
-              options={people}
-              getOptionLabel={(o) => `${o.fullName} (${o.email})`}
-              onChange={(_e, value) => setSelectedClient(value)}
-              renderInput={(params) => <TextField {...params} label="Select Existing Client" required />}
-            />
-            <Autocomplete
-              multiple
-              options={people.filter((p) => !selectedClient || p.email !== selectedClient.email)}
-              getOptionLabel={(o) => `${o.fullName} (${o.email})`}
-              value={selectedMonitors}
-              onChange={(_e, value) => setSelectedMonitors(value)}
-              renderInput={(params) => <TextField {...params} label="Select Monitors" />}
-            />
+      {/* Architecture Upload + Analyze Dialog */}
+      <Dialog open={archDialogOpen} onClose={() => (!archBusy ? setArchDialogOpen(false) : null)} fullWidth maxWidth="sm">
+        <DialogTitle>Upload Architecture</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <Typography variant="body2" color="text.secondary">Upload PDF or images of the drawings. We’ll analyze them to suggest House, Roof, and Exterior types.</Typography>
+            <input type="file" accept=".pdf,image/*" onChange={(e) => setArchFile(e.target.files?.[0] || null)} />
+            {archError && <Alert severity="error">{archError}</Alert>}
           </Stack>
-        </Paper>
-      )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setArchDialogOpen(false)} disabled={archBusy}>Cancel</Button>
+          <Button
+            variant="contained"
+            disabled={!archFile || archBusy}
+            onClick={async () => {
+              setArchError('')
+              try {
+                setArchBusy(true)
+                const uploaded = await uploadArchitectureTemp()
+                setArchUpload(uploaded)
+                // Analyze via AI (PDF extract + image support)
+                const prompt = [
+                  'Extract home characteristics from the provided architectural drawings/blueprints or images.',
+                  'Return a STRICT JSON object with keys:',
+                  'houseType (one of: single_family, townhome, pool, airport_hangar or empty),',
+                  'roofType (one of: shingles, concrete_tile, flat_roof, metal_roof, other or empty),',
+                  'exteriorType (one of: brick, stucco, siding, other or empty).',
+                  'If unsure, use empty string. No extra text.'
+                ].join(' ')
+                const res = await api.analyzeArchitecture({ urls: [uploaded.url] })
+                const detected = {
+                  houseType: res?.houseType || '',
+                  roofType: res?.roofType || '',
+                  exteriorType: res?.exteriorType || ''
+                }
+                // Fallback to filename heuristic if empty
+                if (!detected.houseType && archFile?.name) {
+                  const s = suggestFromFileName(archFile.name)
+                  if (!detected.houseType) detected.houseType = s.ht
+                  if (!detected.roofType) detected.roofType = s.rt
+                  if (!detected.exteriorType) detected.exteriorType = s.et
+                }
+                if (detected.houseType) setHouseType(detected.houseType)
+                if (detected.roofType) setRoofType(detected.roofType)
+                if (detected.exteriorType) setExteriorType(detected.exteriorType)
+                setArchDialogOpen(false)
+              } catch (e) {
+                setArchError(e.message || 'Analysis failed')
+              } finally {
+                setArchBusy(false)
+              }
+            }}
+          >
+            {archBusy ? <CircularProgress size={18} /> : 'Upload & Analyze'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {activeStep === 2 && (
         <Paper variant="outlined" sx={{ p: 2 }}>
-          <Typography variant="h6" gutterBottom>Builder</Typography>
           <Stack spacing={2}>
-            <Autocomplete
-              options={builders}
-              getOptionLabel={(o) => `${o.fullName} (${o.email})`}
-              onChange={(_e, value) => setSelectedBuilder(value)}
-              renderInput={(params) => <TextField {...params} label="Select Existing Builder" />}
-            />
+            <Typography variant="subtitle1">Invite people to this home</Typography>
+            {invites.map((row, idx) => (
+              <Grid container spacing={1} alignItems="center" key={idx}>
+                <Grid item xs={12} sm={7}>
+                  <TextField fullWidth label="Email" value={row.email} onChange={(e) => {
+                    const next = [...invites]; next[idx] = { ...next[idx], email: e.target.value }; setInvites(next)
+                  }} />
+                </Grid>
+                <Grid item xs={10} sm={4}>
+                  <FormControl fullWidth>
+                    <InputLabel id={`role-${idx}`}>Role</InputLabel>
+                    <Select labelId={`role-${idx}`} label="Role" value={row.role} onChange={(e) => {
+                      const next = [...invites]; next[idx] = { ...next[idx], role: e.target.value }; setInvites(next)
+                    }}>
+                      <MenuItem value="partner">Partner</MenuItem>
+                      <MenuItem value="builder">Builder</MenuItem>
+                      <MenuItem value="coordinator">Coordinator</MenuItem>
+                      <MenuItem value="builder advisor">Builder Advisor</MenuItem>
+                      <MenuItem value="architect">Architect</MenuItem>
+                      <MenuItem value="interior decorator">Interior Decorator</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={2} sm={1}>
+                  <IconButton onClick={() => setInvites((list) => list.length > 1 ? list.filter((_, i) => i !== idx) : list)} aria-label="remove">
+                    <DeleteOutlineIcon fontSize="small" />
+                  </IconButton>
+                </Grid>
+              </Grid>
+            ))}
+            <Box>
+              <Button startIcon={<AddIcon />} onClick={() => setInvites((list) => [...list, { email: '', role: 'partner' }])}>Add Invite</Button>
+            </Box>
           </Stack>
         </Paper>
       )}
@@ -248,14 +468,14 @@ export default function Onboarding() {
             onClick={() => setActiveStep((s) => s + 1)}
             disabled={
               (activeStep === 0 && !isHomeStepValid) ||
-              (activeStep === 1 && !isClientStepValid) ||
-              (activeStep === 2 && !isBuilderStepValid)
+              (activeStep === 1 && !isArchStepValid) ||
+              (activeStep === 2 && !isInvitesStepValid)
             }
           >
             Next
           </Button>
         ) : (
-          <Button variant="contained" onClick={handleSubmit} disabled={!isHomeStepValid}>Create Home</Button>
+          <Button variant="contained" onClick={handleSubmit} disabled={!isHomeStepValid || !isArchStepValid || !isInvitesStepValid}>Create Home</Button>
         )}
       </Stack>
     </Stack>

@@ -8,6 +8,7 @@ const { PermitDocumentSet } = require('../models/PermitDocumentSet');
 
 function buildDefaultPhases() {
   return [
+    { key: 'planning', notes: '' },
     { key: 'preconstruction', notes: '' },
     { key: 'exterior', notes: '' },
     { key: 'interior', notes: '' },

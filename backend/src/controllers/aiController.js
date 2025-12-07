@@ -335,5 +335,141 @@ async function analyzeTradeContext(req, res) {
   }
 }
 
-module.exports = { analyzeUrl, analyzeFiles: analyzeFilesDirectToOpenAI, analyzeTradeContext };
+function normalizeHouseType(v) {
+  const s = String(v || '').toLowerCase().replace(/\s+/g, '_')
+  if (['single_family', 'townhome', 'pool', 'airport_hangar'].includes(s)) return s
+  return ''
+}
+function normalizeRoofType(v) {
+  const s = String(v || '').toLowerCase().replace(/\s+/g, '_')
+  if (s.includes('metal')) return 'metal_roof'
+  if (s.includes('tile') || s.includes('concrete')) return 'concrete_tile'
+  if (s.includes('flat')) return 'flat_roof'
+  if (s.includes('shingle') || s.includes('asphalt')) return 'shingles'
+  if (['shingles','concrete_tile','flat_roof','metal_roof','other'].includes(s)) return s
+  return 'other'
+}
+function normalizeExteriorType(v) {
+  const s = String(v || '').toLowerCase()
+  if (['brick','stucco','siding','other'].includes(s)) return s
+  return 'other'
+}
+
+function parseJsonLoose(text) {
+  try {
+    return JSON.parse(text)
+  } catch {
+    try {
+      const raw = String(text || '')
+      const fence = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)
+      const inner = fence ? fence[1] : raw
+      let candidate = inner
+      if (!fence) {
+        const start = inner.indexOf('{')
+        const end = inner.lastIndexOf('}')
+        if (start !== -1 && end !== -1 && end > start) {
+          candidate = inner.slice(start, end + 1)
+        }
+      }
+      return JSON.parse(candidate)
+    } catch {
+      return null
+    }
+  }
+}
+
+// Analyze architecture docs/images and return normalized JSON
+async function analyzeArchitecture(req, res) {
+  const schema = Joi.object({
+    urls: Joi.array().items(Joi.string().uri()).min(1).required(),
+    model: Joi.string().optional(),
+  });
+  const { value, error } = schema.validate(req.body || {}, { abortEarly: false });
+  if (error) {
+    return res.status(400).json({ message: 'Validation failed', details: error.details });
+  }
+  const { urls, model } = value;
+  try {
+    const openai = ensureOpenAI();
+    // Extract text + detect image URLs
+    const imageUrlRegex = /\.(png|jpe?g|webp|gif)$/i;
+    let combined = '';
+    const imageUrls = [];
+    for (let i = 0; i < urls.length; i++) {
+      const u = urls[i];
+      if (imageUrlRegex.test(u)) {
+        imageUrls.push(u);
+        continue;
+      }
+      try {
+        const text = await extractTextFromUrl(u);
+        if (text && text.trim()) {
+          const header = `\n\n--- Document ${i + 1}: ${u} ---\n`;
+          combined += `${header}${text}`;
+          if (combined.length > 180_000) break;
+        }
+      } catch (_e) {}
+    }
+    const usedModel = model || (imageUrls.length > 0 ? 'gpt-4o' : 'gpt-4o-mini');
+    const system = [
+      'You are Buildwise AI. Return ONLY raw JSON when asked. No prose, no code fences.',
+    ].join(' ');
+    const instruction = [
+      'Extract home characteristics from the provided architectural drawings/blueprints or images.',
+      'Respond with a JSON object with keys:',
+      'houseType (one of: single_family, townhome, pool, airport_hangar or empty string),',
+      'roofType (one of: shingles, concrete_tile, flat_roof, metal_roof, other or empty string),',
+      'exteriorType (one of: brick, stucco, siding, other or empty string).',
+      'If unsure for any key, use empty string. Do NOT include code fences or explanations.',
+    ].join(' ');
+    let completion;
+    if (imageUrls.length > 0) {
+      const userContent = [{ type: 'text', text: instruction }];
+      if (combined.trim()) {
+        userContent.push({ type: 'text', text: `Relevant document text:\n${combined.slice(0, 180_000)}` });
+      }
+      for (const img of imageUrls.slice(0, 10)) {
+        userContent.push({ type: 'image_url', image_url: { url: img } });
+      }
+      completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: userContent },
+        ],
+        temperature: 0.1,
+      });
+    } else {
+      completion = await openai.chat.completions.create({
+        model: usedModel,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: `${instruction}\n${combined.trim() ? `Relevant document text:\n${combined.slice(0, 180_000)}` : ''}`.trim() },
+        ],
+        temperature: 0.1,
+      });
+    }
+    const raw = completion?.choices?.[0]?.message?.content?.toString?.() || '';
+    const parsed = parseJsonLoose(raw) || {};
+    const houseType = normalizeHouseType(parsed.houseType);
+    const roofType = normalizeRoofType(parsed.roofType);
+    const exteriorType = normalizeExteriorType(parsed.exteriorType);
+    try {
+      await AiLog.create({
+        userEmail: req?.user?.email || null,
+        mode: 'architecture',
+        prompt: 'architecture',
+        urls,
+        model: completion?.model || usedModel,
+        responseText: raw,
+        usage: completion?.usage || undefined,
+      });
+    } catch (_e) {}
+    return res.json({ houseType, roofType, exteriorType, raw });
+  } catch (e) {
+    return res.status(500).json({ message: e.message || 'Architecture analysis failed' });
+  }
+}
+
+ module.exports = { analyzeUrl, analyzeFiles: analyzeFilesDirectToOpenAI, analyzeTradeContext, analyzeArchitecture };
 

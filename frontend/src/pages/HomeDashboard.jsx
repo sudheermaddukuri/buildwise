@@ -14,13 +14,15 @@ import Chip from '@mui/material/Chip'
 import Button from '@mui/material/Button'
 import * as d3 from 'd3'
 
-const ALL_PHASES = ['preconstruction', 'exterior', 'interior']
+const ALL_PHASES = ['planning', 'preconstruction', 'exterior', 'interior']
 const PHASE_LABELS = {
+  planning: 'Planning',
   preconstruction: 'PreConstruction',
   exterior: 'Exterior Build',
   interior: 'Interior / Finish Out'
 }
 const PHASE_COLORS = {
+  planning: '#6d4c41',
   preconstruction: '#1976d2',
   exterior: '#ef6c00',
   interior: '#2e7d32'

@@ -38,8 +38,9 @@ import PhaseTimeline from '../components/PhaseTimeline.jsx'
 import Tabs from '@mui/material/Tabs'
 import Tab from '@mui/material/Tab'
 
-const ALL_PHASES = ['preconstruction', 'exterior', 'interior']
+const ALL_PHASES = ['planning', 'preconstruction', 'exterior', 'interior']
 const PHASE_LABELS = {
+  planning: 'Planning',
   preconstruction: 'Pre Construction',
   exterior: 'Exterior Build',
   interior: 'Interior/Finish Out'
@@ -60,7 +61,7 @@ export default function HomeDetail() {
     return () => { mounted = false }
   }, [id])
 
-  const currentPhase = (phase === 'exterior' || phase === 'interior') ? phase : 'preconstruction'
+  const currentPhase = (phase === 'planning' || phase === 'exterior' || phase === 'interior' || phase === 'preconstruction') ? phase : 'preconstruction'
 
   const bidsForPhase = useMemo(() => {
     if (!home?.trades) return []

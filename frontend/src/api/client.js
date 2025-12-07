@@ -229,6 +229,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ homeId, tradeId, taskId, urls, prompt, containsImages })
     }),
+  analyzeArchitecture: ({ urls }) =>
+    apiRequest('/ai/analyze-architecture', { method: 'POST', body: JSON.stringify({ urls }) }),
   // Bid comparison for a trade
   compareTradeBids: (homeId, bidId, { urls, extraContext }) =>
     apiRequest(`/homes/${homeId}/trades/${bidId}/compare-bids`, {

@@ -17,6 +17,8 @@ import HomeMessages from './pages/HomeMessages.jsx'
 import TemplateEditor from './pages/TemplateEditor.jsx'
 import Terms from './pages/Terms.jsx'
 import Account from './pages/Account.jsx'
+import HomePlanning from './pages/HomePlanning.jsx'
+import HomeTools from './pages/HomeTools.jsx'
 
 function App() {
   return (
@@ -28,6 +30,8 @@ function App() {
         <Route path="/homes" element={<HomeList />} />
         <Route path="/homes/:id" element={<Navigate to="dashboard" replace />} />
         <Route path="/homes/:id/dashboard" element={<HomeDashboard />} />
+        <Route path="/homes/:id/planning" element={<HomePlanning />} />
+        <Route path="/homes/:id/tools" element={<HomeTools />} />
         <Route path="/homes/:id/:phase" element={<HomeDetail />} />
         <Route path="/homes/:id/trades" element={<HomeTrades />} />
         <Route path="/homes/:id/trades/:bidId" element={<HomeBidDetail />} />

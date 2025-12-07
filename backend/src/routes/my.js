@@ -24,6 +24,7 @@ router.get('/homes', requireAuth, async (req, res) => {
       { 'client.email': email },
       { 'builder.email': email },
       { 'monitors.email': email },
+      { 'participants.email': email },
     ],
   })
     .sort({ updatedAt: -1 })
