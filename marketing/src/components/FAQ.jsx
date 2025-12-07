@@ -15,7 +15,7 @@ export default function FAQ() {
         <Typography variant="h4" sx={{ fontWeight: 800, mb: 2 }}>FAQ</Typography>
         <Stack spacing={1}>
           {items.map((it) => (
-            <Accordion key={it.q} sx={{ bgcolor: '#121a2b', border: '1px solid #1f2942' }}>
+            <Accordion key={it.q} sx={{ bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Typography fontWeight={600}>{it.q}</Typography>
               </AccordionSummary>

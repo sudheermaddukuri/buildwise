@@ -8,7 +8,7 @@ export default function Pricing() {
       name: 'Guide',
       subtitle: 'Essential tools',
       features: ['Task guidance for all phases', 'Self quality‑checks', 'Checklists and templates', 'Email support'],
-      cta: 'Contact for pricing',
+      cta: 'Start free trial',
       priceDisplay: 'Contact for pricing',
       chipLabel: 'Tailored • per home'
     },
@@ -16,7 +16,7 @@ export default function Pricing() {
       name: 'AI Assurance',
       subtitle: 'Plan + bid analysis',
       features: ['AI plan & drawing analysis', 'Bid & contract checks', 'Bid comparison across vendors', 'Variance & omission flags', 'Priority support'],
-      cta: 'Contact for pricing',
+      cta: 'Start free trial',
       featured: true,
       priceDisplay: 'Contact for pricing',
       chipLabel: 'Tailored • per home'
@@ -88,17 +88,18 @@ export default function Pricing() {
           {tiers.map((t) => (
             <Grid item xs={12} md={4} key={t.name}>
               <Card variant="outlined" sx={{
-                height: '100%', borderColor: t.featured ? 'rgba(66,230,164,.4)' : '#1f2942',
-                outline: t.featured ? '2px solid rgba(66,230,164,.15)' : 'none',
-                backgroundColor: '#121a2b'
+                height: '100%',
+                borderColor: t.featured ? 'primary.light' : 'divider',
+                outline: t.featured ? '2px solid rgba(25,118,210,.15)' : 'none',
+                backgroundColor: 'background.paper'
               }}>
                 <CardContent>
                   <Typography variant="h6">{t.name}</Typography>
                   <Typography color="text.secondary" sx={{ mb: 1 }}>{t.subtitle}</Typography>
-                  <Typography sx={{ mb: 1, fontWeight: 800, fontSize: 24, color: '#e6ebff' }}>
+                  <Typography sx={{ mb: 1, fontWeight: 800, fontSize: 24, color: 'text.primary' }}>
                     {t.priceDisplay}
                   </Typography>
-                  <Divider sx={{ borderColor: '#1f2942', mb: 1 }} />
+                  <Divider sx={{ borderColor: 'divider', mb: 1 }} />
                   <Stack spacing={1}>
                     {t.features.map((f) => (
                       <Stack key={f} direction="row" spacing={1} alignItems="center">
@@ -109,8 +110,17 @@ export default function Pricing() {
                   </Stack>
                 </CardContent>
                 <CardActions sx={{ px: 2, pb: 2, pt: 0, display: 'flex', justifyContent: 'space-between' }}>
-                  <Chip label={t.chipLabel} variant="outlined" sx={{ borderColor: '#1f2942', color: 'text.secondary' }} />
-                  <Button variant="contained" sx={{ color: '#0b1220' }} onClick={() => document.getElementById('contact').scrollIntoView({behavior:'smooth'})}>{t.cta}</Button>
+                  <Chip label={t.chipLabel} variant="outlined" sx={{ borderColor: 'divider', color: 'text.secondary' }} />
+                  <Button
+                    variant="contained"
+                    sx={{ color: '#0b1220' }}
+                    onClick={() => {
+                      const plan = t.name.toLowerCase().includes('ai') ? 'ai_assurance' : 'guide'
+                      window.location.hash = `#/register?plan=${plan}`
+                    }}
+                  >
+                    {t.cta}
+                  </Button>
                 </CardActions>
               </Card>
             </Grid>

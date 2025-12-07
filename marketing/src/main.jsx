@@ -6,12 +6,12 @@ import '../styles.css';
 
 const theme = createTheme({
   palette: {
-    mode: 'dark',
-    primary: { main: '#42e6a4' },
-    background: { default: '#0b1220', paper: '#121a2b' },
-    text: { primary: '#e6ebff', secondary: '#a7b1cc' }
+    mode: 'light',
+    primary: { main: '#1976d2' },
+    background: { default: '#f7f9fc', paper: '#ffffff' },
+    text: { primary: '#0f172a', secondary: '#475569' },
   },
-  shape: { borderRadius: 12 }
+  shape: { borderRadius: 10 }
 });
 
 ReactDOM.createRoot(document.getElementById('root')).render(

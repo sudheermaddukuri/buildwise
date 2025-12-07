@@ -20,7 +20,7 @@ export default function PricingPage() {
 				'Templates cover RFIs, submittals, and punchlists so designer → field handoff is clear and traceable.',
 				'Best for owners who want structured tools and guidance while self‑managing subs and schedule.'
 			],
-			cta: 'Contact for pricing'
+			cta: 'Start free trial'
 		},
 		{
 			name: 'AI Assurance',
@@ -40,7 +40,7 @@ export default function PricingPage() {
 				'Plan checks surface conflicts between sheets and trades to reduce field surprises.',
 				'Best for owners who want rigorous document/bid review before awarding work.'
 			],
-			cta: 'Contact for pricing'
+			cta: 'Start free trial'
 		},
 		{
 			name: 'Concierge',
@@ -118,15 +118,15 @@ export default function PricingPage() {
 				<Grid container spacing={2} sx={{ mb: 4 }}>
 					{plans.map((p) => (
 						<Grid item xs={12} md={4} key={p.name}>
-							<Card variant="outlined" sx={{ height: '100%', borderColor: p.featured ? 'rgba(66,230,164,.4)' : '#1f2942', backgroundColor: '#121a2b' }}>
+              <Card variant="outlined" sx={{ height: '100%', borderColor: p.featured ? 'primary.light' : 'divider', backgroundColor: 'background.paper' }}>
 								<CardHeader
 									title={p.name}
 									subheader={p.tagline}
 									subheaderTypographyProps={{ color: 'text.secondary' }}
 								/>
 								<CardContent>
-									<Typography sx={{ fontSize: 28, fontWeight: 800, mb: 1, color: '#e6ebff' }}>{p.price}</Typography>
-									<Divider sx={{ borderColor: '#1f2942', mb: 1 }} />
+                  <Typography sx={{ fontSize: 28, fontWeight: 800, mb: 1, color: 'text.primary' }}>{p.price}</Typography>
+                  <Divider sx={{ borderColor: 'divider', mb: 1 }} />
 									<Stack spacing={1}>
 										{p.features.map((f) => (
 											<Stack key={f} direction="row" spacing={1} alignItems="center">
@@ -137,7 +137,7 @@ export default function PricingPage() {
 									</Stack>
 									{Array.isArray(p.details) && p.details.length ? (
 										<>
-											<Divider sx={{ borderColor: '#1f2942', my: 1 }} />
+											<Divider sx={{ borderColor: 'divider', my: 1 }} />
 											<Typography variant="subtitle2" sx={{ mb: .5 }}>Why this matters</Typography>
 											<Stack spacing={0.5}>
 												{p.details.map((d) => (
@@ -150,13 +150,19 @@ export default function PricingPage() {
 								<CardContent>
 									<Button
 										variant="contained"
-										sx={{ color: '#0b1220' }}
 										onClick={() => {
-											window.location.hash = '#/'
-											setTimeout(() => {
-												const el = document.getElementById('contact')
-												if (el) el.scrollIntoView({ behavior: 'smooth' })
-											}, 50)
+											const name = (p.name || '').toLowerCase();
+											if (name.includes('ai')) {
+												window.location.hash = '#/register?plan=ai_assurance';
+											} else if (name.includes('guide')) {
+												window.location.hash = '#/register?plan=guide';
+											} else {
+												window.location.hash = '#/';
+												setTimeout(() => {
+													const el = document.getElementById('contact');
+													if (el) el.scrollIntoView({ behavior: 'smooth' });
+												}, 50);
+											}
 										}}
 									>
 										{p.cta}
@@ -172,7 +178,7 @@ export default function PricingPage() {
 				<Grid container spacing={2}>
 					{addOns.map((a) => (
 						<Grid item xs={12} md={4} key={a.name}>
-							<Card variant="outlined" sx={{ height: '100%', borderColor: '#1f2942', backgroundColor: '#121a2b' }}>
+              <Card variant="outlined" sx={{ height: '100%', borderColor: 'divider', backgroundColor: 'background.paper' }}>
 								<CardContent>
 									<Typography variant="h6">{a.name}</Typography>
 									<Typography color="text.secondary" sx={{ mb: 1 }}>{a.desc}</Typography>
@@ -186,7 +192,7 @@ export default function PricingPage() {
 									</Stack>
 									{Array.isArray(a.details) && a.details.length ? (
 										<>
-											<Divider sx={{ borderColor: '#1f2942', my: 1 }} />
+                  <Divider sx={{ borderColor: 'divider', my: 1 }} />
 											<Typography variant="subtitle2" sx={{ mb: .5 }}>Details</Typography>
 											<Stack spacing={0.5}>
 												{a.details.map((d) => (

@@ -5,7 +5,7 @@ import logo from '../assets/logo.svg';
 export default function Footer() {
   const year = new Date().getFullYear();
   return (
-    <Box component="footer" sx={{ borderTop: '1px solid #1f2942', py: 3, background: 'rgba(11,18,32,.6)' }}>
+    <Box component="footer" sx={{ borderTop: '1px solid', borderColor: 'divider', py: 3, background: 'rgba(255,255,255,.7)' }}>
       <Container maxWidth="lg" sx={{ display: 'grid', gap: 1, alignItems: 'center', gridTemplateColumns: { md: '1fr auto 1fr' } }}>
         <Stack direction="row" spacing={1} alignItems="center" sx={{ color: 'text.secondary' }}>
           <img src={logo} alt="" width="120" height="24" />

@@ -54,7 +54,7 @@ export default function Why() {
 
 function Section({ title, children }) {
   return (
-    <Card variant="outlined" sx={{ borderColor: '#1f2942', backgroundColor: '#121a2b' }}>
+    <Card variant="outlined" sx={{ borderColor: 'divider', backgroundColor: 'background.paper' }}>
       <CardContent>
         <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>{title}</Typography>
         <Stack spacing={1}>{children}</Stack>

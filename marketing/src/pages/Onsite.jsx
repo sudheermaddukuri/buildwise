@@ -18,7 +18,7 @@ export default function Onsite() {
         <Typography color="text.secondary" sx={{ mb: 3 }}>
           Want the confidence of a pro at the key moments? Our Concierge team provides onsite coordination at critical milestones, integrates with your trades, and uses the same Buildwise checklists and bid comparisons to keep the project on track.
         </Typography>
-        <Card variant="outlined" sx={{ borderColor: '#1f2942', backgroundColor: '#121a2b', mb: 3 }}>
+        <Card variant="outlined" sx={{ borderColor: 'divider', backgroundColor: 'background.paper', mb: 3 }}>
           <CardContent>
             <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>Milestone Coverage</Typography>
             <Stack spacing={1}>
@@ -31,7 +31,7 @@ export default function Onsite() {
             </Stack>
           </CardContent>
         </Card>
-        <Card variant="outlined" sx={{ borderColor: '#1f2942', backgroundColor: '#121a2b' }}>
+        <Card variant="outlined" sx={{ borderColor: 'divider', backgroundColor: 'background.paper' }}>
           <CardContent>
             <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>How it works</Typography>
             <Stack spacing={1}>

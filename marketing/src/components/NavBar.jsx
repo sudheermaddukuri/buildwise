@@ -16,7 +16,18 @@ export default function NavBar({ route }) {
 	};
 	const isHome = route === '#/' || route === '' || route === '#';
 	return (
-		<AppBar position="sticky" elevation={0} sx={{ background: 'rgba(11,18,32,.7)', backdropFilter: 'blur(8px)', borderBottom: '1px solid #1f2942' }}>
+		<AppBar
+			position="sticky"
+			elevation={0}
+			color="default"
+			sx={{
+				backgroundColor: 'rgba(255,255,255,.8)',
+				backdropFilter: 'blur(8px)',
+				borderBottom: '1px solid',
+				borderColor: 'divider',
+				color: 'text.primary'
+			}}
+		>
 			<Toolbar style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
 				<Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, cursor: 'pointer' }} onClick={() => { if (!isHome) { go('#/'); } else { scrollTo('top'); } }}>
 					<img src={logo} alt="BuildWise AI" width="120" height="24" />
@@ -26,7 +37,7 @@ export default function NavBar({ route }) {
 						<Button color="inherit" onClick={() => go('#/why')}>Why Buildwise</Button>
 						<Button color="inherit" onClick={() => go('#/packages')}>Packages</Button>
 						<Button color="inherit" onClick={() => go('#/pricing')}>Pricing</Button>
-						<Button color="inherit" onClick={() => go('#/onsite')}>Onsite Build</Button>
+          <Button color="inherit" onClick={() => go('#/onsite')}>Onsite Build</Button>
 						<Button color="inherit" onClick={() => { if (isHome) { scrollTo('faq'); } else { go('#/'); setTimeout(() => scrollTo('faq'), 50); } }}>FAQ</Button>
 						<Button variant="contained" sx={{ color: '#0b1220' }} onClick={() => { if (isHome) { scrollTo('contact'); } else { go('#/'); setTimeout(() => scrollTo('contact'), 50); } }}>Get in touch</Button>
 					</Stack>

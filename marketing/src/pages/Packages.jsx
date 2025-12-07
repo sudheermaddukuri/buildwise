@@ -56,7 +56,7 @@ export default function Packages() {
 				<Grid container spacing={2}>
 					{packagesList.map((p) => (
 						<Grid item xs={12} md={6} key={p.name}>
-							<Card variant="outlined" sx={{ height: '100%', borderColor: '#1f2942', backgroundColor: '#121a2b' }}>
+              <Card variant="outlined" sx={{ height: '100%', borderColor: 'divider', backgroundColor: 'background.paper' }}>
 								<CardContent>
 									<Typography variant="h5" sx={{ fontWeight: 700 }}>{p.name}</Typography>
 									<Typography color="text.secondary" sx={{ mb: 1 }}>{p.desc}</Typography>

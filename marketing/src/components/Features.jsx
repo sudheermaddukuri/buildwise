@@ -24,7 +24,7 @@ export default function Features() {
         <Grid container spacing={2}>
           {items.map((it) => (
             <Grid item xs={12} md={4} key={it.title}>
-              <Card variant="outlined" sx={{ height: '100%', borderColor: '#1f2942', backgroundColor: '#121a2b' }}>
+              <Card variant="outlined" sx={{ height: '100%', borderColor: 'divider', backgroundColor: 'background.paper' }}>
                 <CardContent>
                   <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: .5 }}>
                     {it.icon}

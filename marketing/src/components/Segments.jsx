@@ -15,7 +15,7 @@ export default function Segments() {
         <Grid container spacing={2}>
           {segs.map((s) => (
             <Grid item xs={12} md={3} key={s.title}>
-              <Card variant="outlined" sx={{ height: '100%', borderColor: '#1f2942', backgroundColor: '#121a2b' }}>
+              <Card variant="outlined" sx={{ height: '100%', borderColor: 'divider', backgroundColor: 'background.paper' }}>
                 <CardContent>
                   <Typography variant="h6" sx={{ mb: .5 }}>{s.title}</Typography>
                   <Typography color="text.secondary">{s.desc}</Typography>
