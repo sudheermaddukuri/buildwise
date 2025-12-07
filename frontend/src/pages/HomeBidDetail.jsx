@@ -64,6 +64,7 @@ export default function HomeBidDetail() {
   const [aiLoading, setAiLoading] = useState(false)
   const [aiResult, setAiResult] = useState('')
   const [aiSelectedUrls, setAiSelectedUrls] = useState([])
+  const [aiIncludeImages, setAiIncludeImages] = useState(false)
   // Task modal state (same format as Progress by phase pages)
   const [taskModal, setTaskModal] = useState({ open: false, bidId: '', task: null })
   const [taskEdit, setTaskEdit] = useState({ title: '', description: '' })
@@ -125,6 +126,8 @@ export default function HomeBidDetail() {
     return [...tradeAttachments, ...tradePinned]
   }, [home, bidId])
   const bidPdfDocs = useMemo(() => (bidDocs || []).filter((d) => /\.pdf($|[\?#])/i.test(d?.url || '')), [bidDocs])
+  const bidImageDocs = useMemo(() => (bidDocs || []).filter((d) => /\.(png|jpg|jpeg|webp|gif)$/i.test(d?.url || '')), [bidDocs])
+  const aiCandidateDocs = useMemo(() => aiIncludeImages ? [...bidPdfDocs, ...bidImageDocs] : bidPdfDocs, [aiIncludeImages, bidPdfDocs, bidImageDocs])
   const invoices = useMemo(() => (bid?.invoices || []), [bid])
   const paidSum = useMemo(() => invoices.filter(i => i.paid).reduce((s, i) => s + (Number(i.amount) || 0), 0), [invoices])
   const outstanding = useMemo(() => Math.max((Number(bid?.totalPrice ?? 0)) - paidSum, 0), [bid, paidSum])
@@ -144,6 +147,13 @@ export default function HomeBidDetail() {
   const [infoTab, setInfoTab] = useState(0) // 0=Schedules,1=Contracts,2=Messages
   const [addDialog, setAddDialog] = useState({ open: false, mode: 'task', bidId, title: '', desc: '', phaseKey: 'preconstruction' })
 
+  // Reset AI selections when dialog opens or candidate list changes
+  useEffect(() => {
+    if (aiOpen) {
+      const all = (aiCandidateDocs || []).map((d) => d.url).filter(Boolean)
+      setAiSelectedUrls(all)
+    }
+  }, [aiOpen, aiCandidateDocs])
   async function save() {
     setError('')
     try {
@@ -996,8 +1006,24 @@ export default function HomeBidDetail() {
         <DialogContent dividers>
           <Stack spacing={2}>
             <Typography variant="body2" color="text.secondary">
-              {`Select which documents to include (${aiSelectedUrls.length} selected of ${bidPdfDocs.length}). Adjust the prompt below if needed:`}
+              {`Select which documents to include (${aiSelectedUrls.length} selected of ${aiCandidateDocs.length}). Adjust the prompt below if needed:`}
             </Typography>
+            <Stack direction="row" alignItems="center" spacing={1}>
+              <Checkbox
+                checked={aiIncludeImages}
+                onChange={(e) => {
+                  const on = e.target.checked
+                  setAiIncludeImages(on)
+                  if (!on) {
+                    setAiSelectedUrls((prev) => prev.filter(u => /\.pdf($|[\\?#])/i.test(u)))
+                  } else {
+                    const all = (aiCandidateDocs || []).map(d => d.url).filter(Boolean)
+                    setAiSelectedUrls(all)
+                  }
+                }}
+              />
+              <Typography variant="body2">Include image files (pictures/diagrams)</Typography>
+            </Stack>
             <TextField
               label="Analysis prompt"
               multiline
@@ -1006,24 +1032,22 @@ export default function HomeBidDetail() {
               onChange={(e) => setAiPrompt(e.target.value)}
               fullWidth
             />
-            <Box sx={{ maxHeight: 200, overflow: 'auto', border: '1px solid', borderColor: 'divider', p: 1, borderRadius: 1 }}>
-              {bidPdfDocs.map((d, idx) => {
-                const u = d.url
-                const checked = aiSelectedUrls.includes(u)
-                return (
-                  <Stack key={d._id || idx} direction="row" spacing={1} alignItems="center">
+            <Box sx={{ maxHeight: 260, overflow: 'auto', border: '1px solid', borderColor: 'divider', p: 1, borderRadius: 1 }}>
+              {aiCandidateDocs.map((d, idx) => (
+                <div key={d._id || `${idx}`}>
+                  <Stack direction="row" spacing={1} alignItems="center">
                     <Checkbox
                       size="small"
-                      checked={checked}
-                      onChange={() => toggleAiUrl(u)}
+                      checked={aiSelectedUrls.includes(d.url)}
+                      onChange={() => toggleAiUrl(d.url)}
                     />
-                    <Typography variant="caption" display="block" noWrap title={d.title || u}>
-                      {d.title || u}
+                    <Typography variant="caption" display="block" noWrap title={d.title || d.url}>
+                      {d.title || d.url}
                     </Typography>
                   </Stack>
-                )
-              })}
-              {!bidPdfDocs.length && <Typography variant="caption" color="text.secondary">No documents attached to this trade.</Typography>}
+                </div>
+              ))}
+              {!aiCandidateDocs.length && <Typography variant="caption" color="text.secondary">No documents attached to this trade.</Typography>}
             </Box>
             {aiResult ? (
               <Box sx={{ border: '1px solid', borderColor: 'divider', p: 1 }}>

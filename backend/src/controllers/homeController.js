@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const { Person } = require('../models/Person');
 const { getTemplateById } = require('../templates');
 const { Template } = require('../models/Template');
+const { PermitDocumentSet } = require('../models/PermitDocumentSet');
 
 function buildDefaultPhases() {
   return [
@@ -110,6 +111,31 @@ async function createHome(req, res) {
     // Seed into trades (primary field)
     base.trades = templates.bids;
   }
+  // Attach city permit documents if address contains a known ZIP
+  try {
+    const zipMatch = typeof address === 'string' ? (address.match(/\b\d{5}\b/) || [])[0] : '';
+    if (zipMatch) {
+      // Gather both new home and pool permits
+      const permitSets = await PermitDocumentSet.find({
+        $or: [{ zipCodes: zipMatch }, { city: new RegExp('', 'i') }],
+        projectType: { $in: ['new_home', 'pool'] },
+      }).lean();
+      for (const set of (permitSets || [])) {
+        for (const doc of (set.documents || [])) {
+          base.documents.push({
+            _id: uuidv4(),
+            title: doc.title,
+            url: doc.url,
+            fileName: doc.title,
+            pinnedTo: { type: 'home' },
+            createdAt: new Date(),
+            uploadedBy: { email: '', fullName: '' },
+            category: 'permit',
+          });
+        }
+      }
+    }
+  } catch (_e) {}
   const home = await Home.create(base);
   return res.status(201).json(home);
 }
@@ -265,7 +291,7 @@ const documentCreateSchema = Joi.object({
   title: Joi.string().required(),
   url: Joi.string().uri().required(),
   s3Key: Joi.string().allow('').optional(),
-  category: Joi.string().valid('contract', 'bid', 'invoice', 'picture', 'other').optional(),
+  category: Joi.string().valid('contract', 'bid', 'invoice', 'picture', 'permit', 'other').optional(),
   pinnedTo: Joi.object({
     type: Joi.string().valid('home', 'trade', 'task').default('home'),
     id: Joi.string().allow('').optional(),

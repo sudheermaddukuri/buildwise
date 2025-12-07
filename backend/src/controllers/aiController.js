@@ -222,12 +222,15 @@ async function analyzeTradeContext(req, res) {
     urls: Joi.array().items(Joi.string().uri()).optional(),
     prompt: Joi.string().allow('').optional(),
     model: Joi.string().optional(),
+    containsImage: Joi.boolean().optional(),
+    containsImages: Joi.boolean().optional(),
   }).or('tradeId', 'taskId');
   const { value, error } = schema.validate(req.body || {}, { abortEarly: false });
   if (error) {
     return res.status(400).json({ message: 'Validation failed', details: error.details });
   }
   const { homeId, tradeId, taskId, urls = [], prompt, model } = value;
+  const wantImages = Boolean(value.containsImage || value.containsImages);
   try {
     const openai = ensureOpenAI();
     const usedModel = model || 'gpt-4o-mini';
@@ -242,9 +245,14 @@ async function analyzeTradeContext(req, res) {
       })
       .join('\n');
     let docsText = '';
+    const imageUrlRegex = /\.(png|jpe?g|webp|gif)$/i;
+    const imageUrls = [];
     for (let i = 0; i < Math.min(urls.length, 10); i++) {
       const u = urls[i];
       try {
+        if (wantImages && imageUrlRegex.test(u)) {
+          imageUrls.push(u);
+        }
         const t = await extractTextFromUrl(u);
         if (t && t.trim()) {
           const header = `\n\n--- Attachment ${i + 1}: ${u} ---\n`;
@@ -268,28 +276,47 @@ async function analyzeTradeContext(req, res) {
       'Use provided context from project messages and documents. Call out uncertainties explicitly.',
       'Keep answers structured, specific, and concise where possible.',
     ].join(' ');
-    const userParts = [];
-    const userPrompt = prompt && prompt.trim()
-      ? `User prompt:\n${prompt.trim()}\n`
-      : (tradePrompt ? `Guidance:\n${tradePrompt}\n` : 'Provide a concise, structured analysis.\n');
-    userParts.push(userPrompt);
-    if (tradePrompt && prompt && prompt.trim()) {
-      userParts.push(`Trade context:\n${tradePrompt}\n`);
+    let completion;
+    if (wantImages && imageUrls.length > 0) {
+      const userContent = [];
+      const userPrompt = prompt && prompt.trim()
+        ? `User prompt:\n${prompt.trim()}`
+        : (tradePrompt ? `Guidance:\n${tradePrompt}` : 'Provide a concise, structured analysis.');
+      userContent.push({ type: 'text', text: userPrompt });
+      if (tradePrompt && prompt && prompt.trim()) {
+        userContent.push({ type: 'text', text: `Trade context:\n${tradePrompt}` });
+      }
+      if (msgText.trim()) userContent.push({ type: 'text', text: `Recent project messages:\n${msgText.slice(0, 50_000)}` });
+      if (docsText.trim()) userContent.push({ type: 'text', text: `Relevant document text:\n${docsText.slice(0, 150_000)}` });
+      for (const img of imageUrls.slice(0, 10)) {
+        userContent.push({ type: 'image_url', image_url: { url: img } });
+      }
+      completion = await openai.chat.completions.create({
+        model: 'gpt-4o', // ensure vision-capable when images included
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: userContent },
+        ],
+        temperature: 0.2,
+      });
+    } else {
+      const parts = [];
+      const userPrompt = prompt && prompt.trim()
+        ? `User prompt:\n${prompt.trim()}\n`
+        : (tradePrompt ? `Guidance:\n${tradePrompt}\n` : 'Provide a concise, structured analysis.\n');
+      parts.push(userPrompt);
+      if (tradePrompt && prompt && prompt.trim()) parts.push(`Trade context:\n${tradePrompt}\n`);
+      if (msgText.trim()) parts.push(`Recent project messages:\n${msgText.slice(0, 50_000)}\n`);
+      if (docsText.trim()) parts.push(`Relevant document text:\n${docsText.slice(0, 150_000)}\n`);
+      completion = await openai.chat.completions.create({
+        model: usedModel,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: parts.join('\n') },
+        ],
+        temperature: 0.2,
+      });
     }
-    if (msgText.trim()) {
-      userParts.push(`Recent project messages:\n${msgText.slice(0, 50_000)}\n`);
-    }
-    if (docsText.trim()) {
-      userParts.push(`Relevant document text:\n${docsText.slice(0, 150_000)}\n`);
-    }
-    const completion = await openai.chat.completions.create({
-      model: usedModel,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: userParts.join('\n') },
-      ],
-      temperature: 0.2,
-    });
     const result = completion?.choices?.[0]?.message?.content?.toString?.() || '';
     try {
       await AiLog.create({

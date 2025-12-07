@@ -12,7 +12,8 @@
     "build:public": "npm run build:marketing && npm run build:frontend",
     "package:zip": "bash -lc 'cd .. && rm -f buildwise_server.zip && zip -r buildwise_server.zip backend -x \"backend/node_modules/**\"'",
     "lint": "echo \"No linter configured\"",
-    "seed:templates": "node src/scripts/seedTemplates.js"
+    "seed:templates": "node src/scripts/seedTemplates.js",
+    "seed:permits": "node src/scripts/seedPermitsDallas.js"
   },
   "dependencies": {
     "express-async-errors": "^3.1.1",

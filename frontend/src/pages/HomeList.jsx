@@ -11,12 +11,27 @@ import Card from '@mui/material/Card'
 import CardActionArea from '@mui/material/CardActionArea'
 import CardContent from '@mui/material/CardContent'
 import AddIcon from '@mui/icons-material/Add'
+import LinearProgress from '@mui/material/LinearProgress'
+import Chip from '@mui/material/Chip'
 
 export default function HomeList() {
   const [homes, setHomes] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const navigate = useNavigate()
+
+  function computeProgress(home) {
+    try {
+      const trades = Array.isArray(home?.trades) ? home.trades : []
+      const tasks = trades.flatMap((t) => Array.isArray(t?.tasks) ? t.tasks : [])
+      const total = tasks.length
+      const done = tasks.filter((t) => t && t.status === 'done').length
+      const pct = total ? Math.round((done / total) * 100) : 0
+      return { total, done, pct, tradesCount: trades.length }
+    } catch {
+      return { total: 0, done: 0, pct: 0, tradesCount: 0 }
+    }
+  }
 
   useEffect(() => {
     let mounted = true
@@ -58,9 +73,24 @@ export default function HomeList() {
             <Grid key={h._id} item xs={12} sm={6} md={4} lg={3}>
               <Card variant="outlined">
                 <CardActionArea onClick={() => navigate(`/homes/${h._id}/preconstruction`)}>
-                  <CardContent>
+                  <CardContent sx={{ display: 'grid', gap: 1 }}>
                     <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{h.name}</Typography>
                     <Typography variant="body2" color="text.secondary">{h.address || 'No address'}</Typography>
+                    {(() => {
+                      const prog = computeProgress(h)
+                      return (
+                        <>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <LinearProgress variant="determinate" value={prog.pct} sx={{ flex: 1 }} />
+                            <Typography variant="caption" color="text.secondary" sx={{ minWidth: 56, textAlign: 'right' }}>{prog.pct}%</Typography>
+                          </Stack>
+                          <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
+                            <Chip size="small" label={`${prog.done}/${prog.total} tasks`} />
+                            <Chip size="small" label={`${prog.tradesCount} trades`} />
+                          </Stack>
+                        </>
+                      )
+                    })()}
                   </CardContent>
                 </CardActionArea>
               </Card>
